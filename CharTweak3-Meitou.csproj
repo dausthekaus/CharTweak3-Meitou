@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <Import Project="Meitou.local.props" Condition="Exists('Meitou.local.props')" />
+  <PropertyGroup>
+    <TargetFramework>net11.0</TargetFramework>
+    <OutputType>Library</OutputType>
+    <AssemblyName>CharTweak3-Meitou</AssemblyName>
+    <RootNamespace>CharTweak3</RootNamespace>
+    <Version>0.2.0-beta.2</Version>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
+    <AssemblySearchPaths>{HintPathFromItem};$(AssemblySearchPaths)</AssemblySearchPaths>
+    <!-- Keep the compilation baseline and manifest gameVersion minimum together. -->
+    <MeitouBaselineVersion>0.22.1</MeitouBaselineVersion>
+    <MeitouDirectory Condition="'$(MeitouDirectory)' == ''">$(MSBuildThisFileDirectory)artifacts/meitou/$(MeitouBaselineVersion)</MeitouDirectory>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="src/**/*.cs" />
+    <!-- Meitou supplies these at runtime. Never distribute them with this mod. -->
+    <Reference Include="MeitouClient" HintPath="$(MeitouDirectory)/MeitouClient.dll" Private="false" />
+    <Reference Include="Meitou.Simulation" HintPath="$(MeitouDirectory)/Meitou.Simulation.dll" Private="false" />
+    <Reference Include="Meitou.Data" HintPath="$(MeitouDirectory)/Meitou.Data.dll" Private="false" />
+    <Reference Include="Meitou.Core" HintPath="$(MeitouDirectory)/Meitou.Core.dll" Private="false" />
+    <Reference Include="0Harmony" HintPath="$(MeitouDirectory)/0Harmony.dll" Private="false" />
+    <None Update="meitou.json;CharTweak3-Meitou.mod" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <Target Name="CheckMeitouReferences" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="'%(Reference.HintPath)' != '' and !Exists('%(Reference.HintPath)')"
+           Text="Missing Meitou reference: %(Reference.HintPath). Set MeitouDirectory to an extracted standard MeitouClient $(MeitouBaselineVersion) release; see README.md." />
+    <GetAssemblyIdentity AssemblyFiles="$(MeitouDirectory)/MeitouClient.dll;$(MeitouDirectory)/Meitou.Simulation.dll;$(MeitouDirectory)/Meitou.Data.dll;$(MeitouDirectory)/Meitou.Core.dll">
+      <Output TaskParameter="Assemblies" ItemName="_MeitouBaselineAssemblies" />
+    </GetAssemblyIdentity>
+    <Error Condition="'%(_MeitouBaselineAssemblies.Version)' != '$(MeitouBaselineVersion).0'"
+           Text="%(_MeitouBaselineAssemblies.Identity) is version %(_MeitouBaselineAssemblies.Version). Compile against official $(MeitouBaselineVersion) assemblies to preserve the manifest minimum." />
+  </Target>
+</Project>

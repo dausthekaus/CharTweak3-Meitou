@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <!-- Folder containing MeitouClient.dll and the other release DLLs. -->
+    <MeitouDirectory Condition="'$(MeitouDirectory)' == ''">/path/to/extracted/Meitou-0.22.1</MeitouDirectory>
+  </PropertyGroup>
+</Project>

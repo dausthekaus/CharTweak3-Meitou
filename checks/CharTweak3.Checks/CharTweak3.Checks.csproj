@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>Check</AssemblyName>
+    <TargetFramework>net11.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Exercise the actual loader, UI and save code, without bundling dependencies in the mod. -->
+    <Reference Include="$(MeitouRuntimeDirectory)/*.dll"
+               Exclude="$(MeitouRuntimeDirectory)/System.*.dll;$(MeitouRuntimeDirectory)/Microsoft.*.dll;$(MeitouRuntimeDirectory)/mscorlib.dll;$(MeitouRuntimeDirectory)/netstandard.dll;$(MeitouRuntimeDirectory)/WindowsBase.dll" />
+  </ItemGroup>
+  <Target Name="CheckRuntimeDirectory" BeforeTargets="ResolveAssemblyReferences">
+    <Error Condition="!Exists('$(MeitouRuntimeDirectory)/MeitouClient.dll')"
+           Text="Set MeitouRuntimeDirectory to an extracted standard MeitouClient release, or use scripts/check.sh." />
+  </Target>
+</Project>

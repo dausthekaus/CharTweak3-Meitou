@@ -1,0 +1,11 @@
+bin/
+obj/
+artifacts/
+Meitou.local.props
+meitou.local.json
+meitou.user.json
+log.txt
+.vs/
+.vscode/
+*.user
+*.suo
