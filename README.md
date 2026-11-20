@@ -1,11 +1,28 @@
 # CharTweak 3 for MeitouClient
 
-C# code mod for the CharTweak2 feature port. **0.2.0-beta.2** includes the personality
-selector and a button to open the selected player's character editor, available
-in both HUD modes after starting or loading a game.
+C# code mod for the CharTweak2 feature port. **0.4.0-beta.1** adds custom portraits
+with Linux/Windows file selection and images embedded in saves. It also includes personal clothing
+colors, a shared uniform with per-character membership, and named palette presets.
+The personality selectors (gameplay and new-game creation) and selected-player
+character editor button remain available in both HUD modes.
 The feature inventory and porting rules are in [docs/migration.md](docs/migration.md).
 
 ## Personality selector
+
+### During new-game character creation
+
+Use the **Personality** arrows near the bottom of the space between the editor's
+side panels. **Default (automatic)** keeps the game's normal personality behavior;
+the other choices select one of the ten named personalities below.
+
+Use the editor's **Change Character** arrows to set each starting character
+independently. Choices remain drafts until the native **CONFIRM** button is
+accepted, including its warning about unvisited characters. They apply on the
+first gameplay tick and persist through normal saves. Closing the editor without
+confirming discards the drafts. Animals and non-player characters cannot use
+this creation picker.
+
+### During gameplay
 
 1. Select a character and click **CharTweak 3** near the upper-left corner.
 2. Check the displayed name and current personality. When inspecting an NPC,
@@ -13,6 +30,9 @@ The feature inventory and porting rules are in [docs/migration.md](docs/migratio
    selected, it edits only the one named in the panel.
 3. Use **<** and **>** to preview a personality, then press **Apply**.
 4. If paused, unpause. Wait for **Personality updated.** before saving normally.
+
+Drag the main CharTweak/personality menu by its title strip to move it aside. It
+keeps its moved position when closed and reopened in the same interface.
 
 Choices: Honorable, Traitorous, Smart, Dumb, Brave, Fearful, Warm / Kind,
 Cold / Cruel, Normal and Maniacal. Changing the selected character resets the
@@ -28,7 +48,7 @@ engine behavior. No external character-id database or sidecar is needed.
 ## Character editor
 
 Select a living player character, open **CharTweak 3**, and click
-**Open Character Editor**. The native editor opens for only the character named
+**Character Editor**. The native editor opens for only the character named
 in the panel; the CharTweak panel closes. Use the editor's **CONFIRM** button to
 apply edits and return to the game, then save normally.
 
@@ -42,6 +62,93 @@ the official 0.22.1 assemblies even when playing on a newer release. Later clien
 may change engine APIs; the open manifest range is not a compatibility guarantee.
 Legacy .NET 10 clients require a separate build.
 
+## Clothing colors and uniform presets
+
+Select a living player character, open **CharTweak 3 → Clothing Colors**.
+The native color window provides two color swatches, six RGB sliders (0–255),
+hex fields (`RRGGBB` or `#RRGGBB`) and the eleven quick colors from CharTweak2.
+Drag the window by its title strip to move it aside. Its position is retained
+when reopening it in the same interface. Click either large color swatch to cycle
+that channel through the eleven quick colors; the arrows also cycle them.
+Previewing changes only the window's swatches. **Apply** and **Reset original**
+keep the window open. Colors update at the next safe interface boundary even
+while paused, without advancing game time; wait for **Colors applied.** or
+**Original colors restored.** before saving. Use **Close** or Escape when finished.
+Closing discards any unapplied draft and retains changes already applied.
+
+| Mode | What Apply does |
+| --- | --- |
+| **Personal** | Sets this character's primary/secondary palette and leaves any uniform membership. |
+| **Uniform** | Enrolls this character and updates the shared uniform colors for every enrolled character in this save. |
+| **Reset original** | Removes this character's override and uniform membership, restoring its current equipment's native colors. |
+
+To join the existing uniform, select another character, open Clothing Colors,
+choose **Uniform**, then **Apply uniform** without editing its colors. Unenrolled
+characters retain their own colors. Uniforms are per save; they do not recolor the
+whole player faction automatically.
+
+For named palettes, enter a **Preset name** and click **Save new**. The selector
+arrows choose a saved palette; **Load** copies it into the draft in either mode.
+Use **Overwrite selected** to replace it. **Delete selected** requires a second
+press. Saving or loading a preset does not change anyone until Apply is pressed.
+Preset names are 1–32 characters and at most 64 palettes can be saved.
+
+Character colors follow the wearer when equipment changes. Original item dyes,
+shared faction/template records, skin and hair stay intact. Only dyeable clothing,
+backpacks and compatible prosthetic materials can show these colors; missing dye
+maps and `dont colorise` still prevent recoloring. Animals and NPCs cannot use
+this color window. The native appearance editor handles hair and skin separately.
+
+Preferences and membership are saved with native character records. The active
+uniform is also stored through Meitou's mod save-data API. Named presets are
+shared across games in `$XDG_CONFIG_HOME/chartweak3-meitou/palettes.json`, normally
+`~/.config/chartweak3-meitou/palettes.json`. Updating the mod preserves that file.
+An unreadable preset file is reported and preserved; personal/uniform editing
+still works. Legacy C++ palette files are not imported automatically.
+
+See [the implementation notes](docs/character-colours.md) for persistence,
+appearance isolation and the remaining in-game visual check.
+
+## Custom portraits
+
+Select a living player character, then **CharTweak 3 → Choose Portrait**. Choose
+an image in the OS file chooser; PNG, JPEG, BMP and TGA are offered. Wait for
+**Portrait applied.**, then save normally. **Reset Portrait** restores the game's
+rendered portrait for that character. Both actions keep the draggable menu open
+and apply while paused. Changing the selected character/world during selection
+discards the result. Cancelling or an invalid image keeps the previous portrait.
+
+Linux uses **kdialog** on KDE and **zenity** on other desktops, with fallback when
+the preferred tool is unavailable. Install either if missing (`sudo dnf install
+zenity` on Fedora). Windows uses its native Unicode Open dialog without requiring
+PowerShell, Python, WinForms or external tools. The same mod DLL runs on both OSes.
+The game keeps its existing pause state while the chooser is open.
+
+Images are copied into the `portraits/` directory beside `palettes.json` (normally
+`~/.config/chartweak3-meitou/portraits/` on Linux and
+`%APPDATA%\chartweak3-meitou\portraits\` on Windows). Imports preserve aspect ratio
+and transparency, resize to at most 512 pixels per side, and leave the source
+unchanged. The source limit is 16 MiB, 8192 pixels per side and 16 megapixels;
+up to 128 different images can be assigned in one world.
+
+Each assignment lives in its character's save record, and the image bytes are
+embedded once per image in Meitou's `meitou-mods/chartweak3-meitou.dat` save file.
+Copy the **whole save folder** when moving saves between Linux and Windows; no
+original image paths are required. Saves grow with the number of distinct images.
+Imports that omit Meitou mod data can use the local portrait cache when available.
+Legacy CharTweak2 portrait assignments are not imported automatically.
+
+Custom portraits replace live-character images in the squad bar, squad windows
+and conversation portraits while preserving native frames, names, health/status
+overlays and selection actions. Non-square pictures fit inside the portrait box
+without cropping or stretching. Template/record portraits remain native.
+
+Build and headless integration checks cover Linux chooser process routing,
+both HUD modes and full disk save/load with the original image and cache removed.
+The Windows dialog ABI is checked on Linux; opening the actual Windows dialog
+and in-game GPU presentation still need testing on their respective systems.
+See [portrait implementation notes](docs/custom-portraits.md).
+
 ## Build on Fedora/Linux
 
 Install a .NET 11 SDK (`dotnet --list-sdks` must show 11.x), Bash, tar and
@@ -51,7 +158,7 @@ Visual Studio, KenshiLib, RE_Kenshi or separate Harmony package is needed.
 
 Extract the [official standard Linux 0.22.1 release](https://github.com/VlcekM/MeitouClient/releases/tag/v0.22.1).
 Use the directory containing `MeitouClient.dll`, `Meitou.Simulation.dll`,
-`Meitou.Data.dll`, `Meitou.Core.dll` and `0Harmony.dll`:
+`Meitou.Data.dll`, `Meitou.Core.dll`, `0Harmony.dll` and `StbImageSharp.dll`:
 
 ```sh
 dotnet build CharTweak3-Meitou.csproj -c Release -p:MeitouDirectory="/path/to/Meitou-0.22.1"
@@ -130,6 +237,31 @@ The editor button calls the existing `CharacterEditorPanel.OpenEditor` entry
 point with `EditKind.Recruit` and one character. The engine owns its draft,
 preview, camera, pause and confirmation commands; the mod does not replace them.
 
+Creation uses scoped hooks on `CharacterEditorPanel.AddEditorContent`,
+`EditorAction` and `ConfirmEditor`, since normal HUD extension slots are hidden
+during editing. Controls participate in the editor's modal pointer routing and
+keyboard navigation. Drafts belong to one editor opening and world; actions
+also carry the character slot/generation and opening token. Confirm queues the
+same personality command used in gameplay. No personality override is queued
+for Default, cancellation or an unaccepted confirmation warning.
+
+Colors use a separate per-world `ColourSystem`. A guarded `SetColours` command
+updates character preferences in Inputs; SlowWorld copies and tints an appearance
+only when its source or palette changes. Separate part/body-layer collections
+preserve shared appearances, original item dyes and body metadata. The renderer
+receives private immutable COLOR_DATA records, never global database edits.
+The native hidden-hat rebuild retains the tint. Namespaced character save fields
+hold RGB values and membership; `IModSaveData` holds the current uniform without
+transient character IDs. `PaletteLibrary` atomically saves named presets.
+
+The Clothing Colors screen uses native MyGUI edit boxes and sliders routed through
+scoped `ScreenRouter` hooks. Modal input, focus, viewport fitting and pausing remain
+the engine's. All hook signatures/collection types are validated on initialization.
+An isolated paused-interface postfix takes only `SetColours` commands, updates
+cold visual preferences and publishes a paused snapshot. Other custom commands
+keep their normal tick behavior. A transparent native title strip supplies dragging
+for the main HUD panel; it is hidden when the panel or HUD is hidden.
+
 The 0.22.1 binary does not contain the lasting-id API in newer source docs;
 this beta uses the release's actual save reader/writer. Recheck the Harmony
 targets and save behavior when changing the supported baseline.
@@ -150,11 +282,34 @@ NPC inspection, no selection, save files on disk, repeated saves, dialogue locks
 invalid/stale commands, state hashing and character isolation. Editor checks
 open and confirm the real native editor, verify single-character targeting and
 in-play mode, reject stale selections/NPCs, and check failed-opening feedback.
-They use the
+Creation checks exercise native modal clicks, independent squad drafts, default
+and cancellation, stale frames from another character/opening, the native warning,
+confirmation, the first tick and personality save fields. A separate color probe
+checks individual mesh/shirt dyes and binary inventory persistence on identical
+equipment in the same faction.
+
+Personal/uniform checks also drive the real native color screen in both modes,
+including slider clicks, typed hex, invalid input, presets, cancellation and stale
+modal actions. They also verify both draggable panels, remembered positions,
+repeated Apply/Reset with the color window open, paused renderer snapshots without
+time advancement, and unrelated commands remaining queued. They verify same-gear isolation, native character edits and hide-hat
+rebuilds, reset, native color saves on disk, loaded uniform membership, mod sidecars,
+import fallback, invalid/dead/reused targets and deterministic hashes across thread
+counts. Preset checks cover disk reload, overwrite/delete, corrupt input and write
+failures. Portrait checks cover both HUD modes, asynchronous chooser routing,
+selection changes, cancel/reset, image normalization, native atlas replacement,
+and full disk saves restoring embedded images with the source and cache removed.
+The checks use the
 release's bundled .NET runtime so Harmony runs even when Fedora's SDK is an RC.
 Only temporary test files are written; no Kenshi assets or existing saves are used.
+The script sets `CHARTWEAK3_CONFIG_HOME` to its temporary directory to isolate
+presets and portrait copies from the player's library.
 
 The Release build and checks pass on Fedora 43 against official 0.22.1. The
 archive contains only the mod's DLL, data file, manifest, README and license.
-The user has confirmed the personality selector works in-game. The editor
-button's rendering and interaction still need an in-game check.
+The user has confirmed the gameplay personality selector, clothing colors,
+uniforms, draggable menus, open-window Apply/Reset and persistence work in-game.
+Custom portrait GPU presentation and the real OS chooser still need an in-game
+check; integration checks run without a GPU. The Windows dialog requires a native
+Windows test as well. See the manual portrait checks in
+[docs/custom-portraits.md](docs/custom-portraits.md#validation-and-remaining-manual-checks).

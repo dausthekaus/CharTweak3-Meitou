@@ -17,8 +17,19 @@ public sealed class CharTweakMod : IMod
         PersonalityUiBridge.Install(context.Harmony);
         PersonalitySave.Install(context.Harmony);
         CharacterEditorLauncher.Initialize();
+        CreationPersonality.Install(context.Harmony);
+        ColourSave.Install(context.Harmony);
+        ColourAppearance.Install(context.Harmony);
+        var portraits = new PortraitFiles(context.LogError);
+        PortraitSave.Install(context.Harmony);
+        PortraitRendering.Install(context.Harmony);
+        MainPanelDrag.Initialize(context.Harmony);
+        ColourEditor.Install(context);
+        ColourPausedUpdates.Install(context.Harmony);
         context.AddSystem("personalities", build => new PersonalitySystem(context.Data, build.Data.Factions), SystemAnchor.End);
-        context.AddUi(new CharTweakUi(context));
-        context.Log($"CharTweak 3 {context.Manifest.Version}: personality selector and character editor registered.");
+        context.AddSystem("colours", _ => new ColourSystem(), SystemAnchor.End);
+        context.AddSystem("portraits", _ => new PortraitSystem(portraits), SystemAnchor.End);
+        context.AddUi(new CharTweakUi(context, portraits));
+        context.Log($"CharTweak 3 {context.Manifest.Version}: personalities, character editor, colors, uniforms and custom portraits registered.");
     }
 }

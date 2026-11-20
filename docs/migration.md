@@ -8,7 +8,10 @@ The legacy source and its bundled dependencies remain outside this repository.
 
 The [personality selector](../README.md#personality-selector) and
 [player character editor button](../README.md#character-editor) are implemented
-in 0.2.0-beta.2. The remaining customization features below are future work.
+in 0.4.0-beta.1, along with independent personality drafts in the native new-game
+editor, personal clothing colors, shared uniform membership and saved palettes.
+See [the color implementation](character-colours.md) and
+[custom portraits](custom-portraits.md). Menu key rebinding remains future work.
 
 | Feature observed in CharTweak2 | Reference implementation |
 | --- | --- |
@@ -35,7 +38,8 @@ in 0.2.0-beta.2. The remaining customization features below are future work.
   gameplay changes in a serial simulation phase; hash state that affects simulation.
 - For future features, use `IModSaveData` and lasting ids on clients that provide
   that API. The 0.22.1 baseline has no lasting ids; the current personality beta
-  persists through its existing native personality field. Never persist transient
+  persists through native character fields, with `IModSaveData` for the active
+  uniform and embedded portrait images. Never persist transient
   `CharacterId` values, pointers or old KenshiLib handles as character identities.
 - Use `AddSettings` for global preferences that fit its supported property types.
   Named palettes and imported portraits need a deliberate storage design.

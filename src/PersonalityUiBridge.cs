@@ -24,6 +24,7 @@ internal static class PersonalityUiBridge
     /// </summary>
     private static MethodInfo? s_lead;
     private static FieldInfo? s_session;
+    private static FieldInfo? s_uiHost, s_frameHost;
 
     /// <summary>
     /// The active HUD, held weakly so the mod does not retain closed interfaces or worlds.
@@ -39,8 +40,10 @@ internal static class PersonalityUiBridge
         var bind = AccessTools.DeclaredMethod(playerUi, "BindUi", Type.EmptyTypes);
         s_lead = AccessTools.DeclaredMethod(playerUi, "Lead", Type.EmptyTypes);
         s_session = AccessTools.DeclaredField(playerUi, "Session");
+        s_uiHost = AccessTools.DeclaredField(playerUi, "_uiHost");
+        s_frameHost = AccessTools.DeclaredField(typeof(UiFrameContext), "_host");
         if (bind?.ReturnType != typeof(UiBindings) || s_lead?.ReturnType != typeof(CharacterSnapshot)
-            || s_session?.FieldType != typeof(WorldSession))
+            || s_session?.FieldType != typeof(WorldSession) || s_uiHost?.FieldType != typeof(UiHost) || s_frameHost?.FieldType != typeof(UiHost))
             throw new NotSupportedException("Unsupported MeitouClient HUD selection API.");
 
         harmony.Patch(bind, postfix: new HarmonyMethod(typeof(PersonalityUiBridge), nameof(Bind)));
@@ -61,8 +64,13 @@ internal static class PersonalityUiBridge
         else s_playerUi.SetTarget(__instance);
         if (s_lead!.Invoke(__instance, null) is not CharacterSnapshot lead) return;
         __result.Text[NameKey] = lead.Name;
+        var colours = session.World.Systems.OfType<ColourSystem>().FirstOrDefault();
+        if (colours is not null && colours.View.TryGetValue(lead.Id, out var colour))
+            __result.Text["chartweak3.colours"] = FormattableString.Invariant($"{colours.Session}|{lead.Id.Slot}|{lead.Id.Generation}|{(int)colour.Mode}|{colour.Palette.Primary}|{colour.Palette.Secondary}|{colour.Uniform.Primary}|{colour.Uniform.Secondary}");
         if (lead.Body is { Dead: true } || !system.View.TryGetValue(lead.Id, out int tag)) return;
         __result.Text[TargetKey] = FormattableString.Invariant($"{system.Session}|{lead.Id.Slot}|{lead.Id.Generation}|{tag}");
+        if (session.World.Systems.OfType<PortraitSystem>().FirstOrDefault()?.View.ContainsKey(lead.Id) == true)
+            __result.Text["chartweak3.portrait.assigned"] = new PersonalityTarget(system.Session, lead.Id, tag, lead.Name).Key;
         if (lead.IsPlayer && lead.Appearance is not null) __result.Text[EditorKey] = "true";
     }
 
@@ -70,6 +78,10 @@ internal static class PersonalityUiBridge
     /// Whether this frame offers the editor for its living player character.
     /// </summary>
     internal static bool CanOpenEditor(UiFrameContext frame) => frame.Text(EditorKey) == "true";
+
+    /// <summary>The current interface only when this frame belongs to its own UI host.</summary>
+    internal static object? InterfaceFor(UiFrameContext frame) => s_playerUi is not null && s_playerUi.TryGetTarget(out var player)
+        && ReferenceEquals(s_uiHost!.GetValue(player), s_frameHost!.GetValue(frame)) ? player : null;
 
     /// <summary>
     /// Revalidates the world and current HUD character immediately before opening the native editor.
@@ -93,8 +105,11 @@ internal static class PersonalityUiBridge
     /// <summary>
     /// Paused selection changes are visible immediately; personality edits remain queued for the next simulation tick.
     /// </summary>
-    private static void Paused(World __instance) =>
+    private static void Paused(World __instance)
+    {
         __instance.Systems.OfType<PersonalitySystem>().FirstOrDefault()?.RefreshView(__instance);
+        __instance.Systems.OfType<ColourSystem>().FirstOrDefault()?.RefreshView(__instance);
+    }
 
     /// <summary>
     /// Reads an immutable frame target; malformed or missing selection data disables editing.

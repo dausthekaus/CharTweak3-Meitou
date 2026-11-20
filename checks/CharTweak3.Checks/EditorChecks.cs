@@ -28,7 +28,7 @@ internal static class EditorChecks
         AccessTools.Property(typeof(CharacterAppearance), nameof(CharacterAppearance.Body))
             .SetValue(look, new AppearanceFile { Record = appearanceRecord });
 
-        var system = host.Simulation!.Systems.Single().Create(new SystemBuildContext(data, []))!;
+        var system = host.Simulation!.Systems.Single(s => s.Name == "personalities").Create(new SystemBuildContext(data, []))!;
         using var session = new WorldSession(Vector3.Zero, (-100, -100, 100, 100), (_, _) => 0,
             systems: [new PlayerSystem(), system]);
         var world = session.World;
@@ -115,6 +115,7 @@ internal static class EditorChecks
             foreach (var registration in registrations) registration.Dispose();
             Console.WriteLine($"PASS: {mode} native editor open/confirm, one-character targeting, stale selection/NPC guards and failure feedback.");
         }
+        CreationChecks.Run(session, player, editor, screens, selected, other, npc);
     }
 
     private static CharacterId Spawn(World world, CharacterAppearance look, string name, bool player) =>

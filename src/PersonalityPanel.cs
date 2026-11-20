@@ -6,8 +6,11 @@ namespace CharTweak3;
 /// <summary>
 /// UI-thread-only window state. It reads frame data and queues edits without touching the live world.
 /// </summary>
-internal sealed class PersonalityPanel(UiRegistration registration, ModContext context)
+internal sealed class PersonalityPanel(UiRegistration registration, ModContext context, PortraitFiles portraits)
 {
+    private readonly PortraitActions _portraits = new(context, portraits);
+    internal void ChoosePortrait(UiActionContext action) => _portraits.Choose(action);
+    internal void ResetPortrait(UiActionContext action) => _portraits.Reset(action);
     /// <summary>
     /// Whether this panel is visible.
     /// </summary>
@@ -41,14 +44,23 @@ internal sealed class PersonalityPanel(UiRegistration registration, ModContext c
     /// <summary>
     /// Closes the panel without changing the character.
     /// </summary>
-    internal void Close(UiActionContext action) => _open = false;
+    internal void Close(UiActionContext action) { _open = false; MainPanelDrag.Hide(action.Frame); }
 
     /// <summary>
     /// Opens the game's editor and dismisses this panel only when the editor successfully opens.
     /// </summary>
     internal void OpenEditor(UiActionContext action)
     {
-        if (CharacterEditorLauncher.Open(action.Frame, out string status)) _open = false;
+        _portraits.ClearStatus();
+        if (CharacterEditorLauncher.Open(action.Frame, out string status)) { _open = false; MainPanelDrag.Hide(action.Frame); }
+        _status = status;
+    }
+
+    /// <summary>Opens the native color controls for the same revalidated player character.</summary>
+    internal void OpenColours(UiActionContext action)
+    {
+        _portraits.ClearStatus();
+        if (ColourEditor.Open(action.Frame, out string status)) { _open = false; MainPanelDrag.Hide(action.Frame); }
         _status = status;
     }
 
@@ -67,6 +79,7 @@ internal sealed class PersonalityPanel(UiRegistration registration, ModContext c
     /// </summary>
     internal void Apply(UiActionContext action)
     {
+        _portraits.ClearStatus();
         var target = PersonalityUiBridge.Read(action.Frame);
         Synchronize(target);
         if (target is null || _index < 0) return;
@@ -84,9 +97,11 @@ internal sealed class PersonalityPanel(UiRegistration registration, ModContext c
     {
         var target = PersonalityUiBridge.Read(frame);
         Synchronize(target);
+        _portraits.Update(frame);
         var root = new UiNode(registration.Key("overlay")) { Pickable = false };
         root.Children.Add(Button("open", "CharTweak 3", new UiPlacement(144, 36, 16, 96)));
         if (_open) root.Children.Add(Window(frame, target));
+        else MainPanelDrag.Hide(frame);
         return root;
     }
 
@@ -114,6 +129,7 @@ internal sealed class PersonalityPanel(UiRegistration registration, ModContext c
     /// </summary>
     private void Cycle(UiFrameContext frame, int direction)
     {
+        _portraits.ClearStatus();
         var target = PersonalityUiBridge.Read(frame);
         Synchronize(target);
         if (target is null) return;
@@ -128,16 +144,17 @@ internal sealed class PersonalityPanel(UiRegistration registration, ModContext c
     private UiNode Window(UiFrameContext frame, PersonalityTarget? target)
     {
         float width = Math.Min(480, Math.Max(0, frame.Viewport.Width - 32));
-        float height = Math.Min(320, Math.Max(0, frame.Viewport.Height - 32));
-        bool compact = height < 280;
+        float height = Math.Min(360, Math.Max(0, frame.Viewport.Height - 32));
+        bool compact = height < 320;
+        var bounds = MainPanelDrag.Place(frame, width, height);
         var window = new UiNode(registration.Key("window"))
         {
-            Placement = new UiPlacement(width, height, (frame.Viewport.Width - width) / 2, (frame.Viewport.Height - height) / 2),
+            Placement = new UiPlacement(width, height, bounds.X, bounds.Y),
             Style = registration.Key("window"),
         };
         string name = target?.Name ?? PersonalityUiBridge.Name(frame);
         if (name.Length > 32) name = name[..29] + "...";
-        window.Children.Add(Label("title", "CharTweak 3", new UiPlacement(UiLength.Fill, 24, Top: compact ? 4 : 8)));
+        window.Children.Add(Label("title", "CharTweak 3 (drag here)", new UiPlacement(UiLength.Fill, 24, Top: compact ? 4 : 8)));
         window.Children.Add(Label("name", name, new UiPlacement(UiLength.Fill, 20, Top: compact ? 28 : 38)));
         string current = target is null ? "Select a living character." : $"Current: {PersonalityOptions.Label(target.Tag)}";
         window.Children.Add(Label("current", current, new UiPlacement(UiLength.Fill, 20, Top: compact ? 48 : 64)));
@@ -147,12 +164,18 @@ internal sealed class PersonalityPanel(UiRegistration registration, ModContext c
         string choice = _index < 0 ? "Choose a personality" : PersonalityOptions.All[_index].Label;
         window.Children.Add(Label("choice", choice, new UiPlacement(width - 120, rowHeight, 60, rowTop), "choice"));
         window.Children.Add(Button("next", ">", new UiPlacement(36, rowHeight, Top: rowTop, Right: 16), target is not null));
-        window.Children.Add(Label("status", _status, new UiPlacement(UiLength.Fill, 22, Top: compact ? 104 : 140)));
-        window.Children.Add(Button("editor", "Open Character Editor",
-            new UiPlacement(width - 32, compact ? 28 : 36, 16, compact ? 128 : 184), PersonalityUiBridge.CanOpenEditor(frame)));
+        window.Children.Add(Label("status", _portraits.Status ?? _status, new UiPlacement(UiLength.Fill, 22, Top: compact ? 102 : 140)));
+        window.Children.Add(Button("editor", compact ? "Editor" : "Character Editor",
+            new UiPlacement((width - 48) / 2, compact ? 24 : 36, 16, compact ? 124 : 184), PersonalityUiBridge.CanOpenEditor(frame)));
+        window.Children.Add(Button("colours", "Clothing Colors",
+            new UiPlacement((width - 48) / 2, compact ? 24 : 36, width / 2 + 8, compact ? 124 : 184), ColourTarget.Read(frame) is not null));
+        window.Children.Add(Button("portrait", _portraits.Busy ? "Importing..." : "Choose Portrait",
+            new UiPlacement((width - 48) / 2, compact ? 24 : 36, 16, compact ? 150 : 232), _portraits.CanChoose(frame)));
+        window.Children.Add(Button("portrait-reset", "Reset Portrait",
+            new UiPlacement((width - 48) / 2, compact ? 24 : 36, width / 2 + 8, compact ? 150 : 232), _portraits.CanReset(frame)));
         bool canApply = target is not null && _index >= 0 && PersonalityOptions.All[_index].Tag != target.Tag
             && PersonalityOptions.All[_index].Tag != _pending;
-        float actionHeight = compact ? 28 : 32;
+        float actionHeight = compact ? 24 : 32;
         window.Children.Add(Button("apply", "Apply", new UiPlacement(112, actionHeight, width / 2 - 120, Bottom: 8), canApply));
         window.Children.Add(Button("close", "Close", new UiPlacement(112, actionHeight, width / 2 + 8, Bottom: 8)));
         return window;

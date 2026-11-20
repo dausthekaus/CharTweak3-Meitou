@@ -33,7 +33,7 @@ var host = ModHost.Load(new ModHostOptions([info], db, data, () => current, Game
 Assert(host.Mods.Count == 1 && host.Notices.Count == 0, "real ModHost loads beta and installs patches");
 var mod = host.Mods[0].Assemblies.Single();
 Assert(mod.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion.Split('+')[0] == manifest.Version!.ToString(), "project/manifest beta versions match");
-var system = host.Simulation!.Systems.Single().Create(new SystemBuildContext(data, []))!;
+var system = host.Simulation!.Systems.Single(s => s.Name == "personalities").Create(new SystemBuildContext(data, []))!;
 using var session = new WorldSession(Vector3.Zero, (-100,-100,100,100), (_,_) => 0,
     simulation: new WorldSettings { Seed = 918273 }, systems: [new PlayerSystem(), system]);
 current = session.World;
@@ -133,7 +133,7 @@ var pinRecord = saved.Platoons.SelectMany(p => p.Characters).Single(c => c.Name 
 var beepRecord = saved.Platoons.SelectMany(p => p.Characters).Single(c => c.Name == "Beep").GameState!;
 Assert(pinRecord.Ints["personality"] == 14, "real SaveCapture writes edited personality");
 Assert(beepRecord.Ints.GetValueOrDefault("personality") == 0, "unmodified natural personality is not written");
-var secondSystem = host.Simulation.Systems.Single().Create(new SystemBuildContext(data, []))!;
+var secondSystem = host.Simulation.Systems.Single(s => s.Name == "personalities").Create(new SystemBuildContext(data, []))!;
 using var loaded = new World(new WorldSettings { Seed = 1 }, new OpenGroundWalkability((_,_) => 0), [new PlayerSystem(), secondSystem]);
 string saveDirectory = Path.Combine(Path.GetTempPath(), "chartweak3-save-" + Guid.NewGuid().ToString("N"));
 saved.Write(saveDirectory);
@@ -172,7 +172,7 @@ var changedHasher = new StateHasher();
 Assert(originalHash != changedHasher.Value, "edited personalities participate in deterministic hash");
 Console.WriteLine("PASS: cross-world command rejection and explicit personality state hashing.");
 // Invalid tags, removed/reused character slots, and dead targets cannot be edited.
-var thirdSystem = host.Simulation.Systems.Single().Create(new SystemBuildContext(data, []))!;
+var thirdSystem = host.Simulation.Systems.Single(s => s.Name == "personalities").Create(new SystemBuildContext(data, []))!;
 using var guards = new World(new WorldSettings { Seed = 2 }, new OpenGroundWalkability((_,_) => 0), [thirdSystem]);
 var removed = Spawn(guards, "Removed", true);
 guards.TellReady(false);
@@ -195,6 +195,10 @@ Assert(replacementCold.Personality == 0, "dead character edits refused");
 Console.WriteLine("PASS: invalid tags, dead characters and removed/reused character slots refused.");
 Assert(DeterministicHash(1) == DeterministicHash(4), "same edits hash identically with one and four workers");
 Console.WriteLine("PASS: deterministic edit state across thread counts.");
+ColourChecks.Run();
+PersonalColourChecks.Run(host, db, w => current = w);
+PortraitChecks.Run(host, db, w => current = w);
+current = world;
 Console.WriteLine("ALL BETA CHECKS PASSED.");
 
 CharacterId Spawn(World w, string name, bool player)
@@ -214,7 +218,7 @@ void Assert(bool condition, string message)
 
 ulong DeterministicHash(int threads)
 {
-    var tickSystem = host.Simulation!.Systems.Single().Create(new SystemBuildContext(data, []))!;
+    var tickSystem = host.Simulation!.Systems.Single(s => s.Name == "personalities").Create(new SystemBuildContext(data, []))!;
     using var w = new World(new WorldSettings { Seed = 42, Threads = threads, MinPartitionSize = 1, PublishSnapshots = false },
         new OpenGroundWalkability((_, _) => 0), [tickSystem]);
     var id = Spawn(w, "Deterministic", true);

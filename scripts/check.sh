@@ -20,6 +20,7 @@ runtime_dir="$(realpath -e -- "$1")"
 python3 - "$repo_dir" "$runtime_dir" <<'PY'
 from pathlib import Path
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -38,10 +39,12 @@ with tempfile.TemporaryDirectory(prefix="chartweak3-check-") as temporary:
     (run / "Check").write_bytes(apphost.replace(entry, b"Check.dll".ljust(len(entry), b"\0")))
     (run / "Check").chmod(0o755)
     shutil.copy2(repo / "checks/CharTweak3.Checks/bin/Release/net11.0/Check.dll", run / "Check.dll")
+    shutil.copy2(repo / "checks/CharTweak3.Checks/bin/Release/net11.0/Check.pdb", run / "Check.pdb")
     shutil.copy2(runtime / "MeitouClient.runtimeconfig.json", run / "Check.runtimeconfig.json")
     deps = json.loads((runtime / "MeitouClient.deps.json").read_text())
     deps["targets"][deps["runtimeTarget"]["name"]]["Check/1.0.0"] = {"runtime": {"Check.dll": {}}}
     deps["libraries"]["Check/1.0.0"] = {"type": "project", "serviceable": False, "sha512": ""}
     (run / "Check.deps.json").write_text(json.dumps(deps))
-    subprocess.run([str(run / "Check"), str(repo / "bin/Release/net11.0")], check=True)
+    environment = dict(os.environ, CHARTWEAK3_CONFIG_HOME=str(run / "config"))
+    subprocess.run([str(run / "Check"), str(repo / "bin/Release/net11.0")], env=environment, check=True)
 PY

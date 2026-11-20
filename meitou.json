@@ -1,6 +1,6 @@
 {
   "id": "chartweak3-meitou",
-  "version": "0.2.0-beta.2",
+  "version": "0.4.0-beta.1",
   "apiVersion": 2,
   "gameVersion": ">=0.22.1",
   "assemblies": ["CharTweak3-Meitou.dll"],
