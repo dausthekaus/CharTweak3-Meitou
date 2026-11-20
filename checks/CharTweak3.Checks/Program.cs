@@ -59,6 +59,7 @@ AccessTools.Field(playerUiType, "Height").SetValue(playerUi, 600);
 UiBindings Bind() => (UiBindings)AccessTools.Method(playerUiType, "BindUi").Invoke(playerUi, null)!;
 var initialBindings = Bind();
 Assert(initialBindings.Text["chartweak3.name"] == "Pin" && initialBindings.Text.ContainsKey("chartweak3.target"), "real HUD BindUi postfix publishes selected character");
+LauncherChecks.Run(host, session, playerUi);
 
 foreach (var mode in new[] { UiMode.Faithful, UiMode.Meitou })
 {

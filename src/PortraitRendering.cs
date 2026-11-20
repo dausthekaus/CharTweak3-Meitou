@@ -14,8 +14,10 @@ namespace CharTweak3;
 internal static class PortraitRendering
 {
     private sealed class Loaded { internal HashSet<string> Paths = new(StringComparer.Ordinal); }
+    private sealed class Profile { internal bool Visible; internal CharacterId Character; internal string Key = ""; }
     private static readonly ConditionalWeakTable<object, Loaded> Textures = new();
-    private static FieldInfo s_session = null!, s_painter = null!, s_requested = null!;
+    private static readonly ConditionalWeakTable<object, Profile> Profiles = new();
+    private static FieldInfo s_session = null!, s_painter = null!, s_requested = null!, s_barPlayer = null!;
     private static PropertyInfo s_bar = null!;
     private static MethodInfo s_members = null!, s_rect = null!, s_dialogue = null!;
     private static int s_npcCell, s_playerCell;
@@ -27,6 +29,7 @@ internal static class PortraitRendering
         s_requested = AccessTools.Field(typeof(UiPainter), "_requestedIcons");
         s_bar = AccessTools.Property(player, "PortraitBar");
         var bar = s_bar?.PropertyType ?? throw new MissingMemberException("PortraitBar");
+        s_barPlayer = bar.GetFields(BindingFlags.Instance | BindingFlags.NonPublic).Single(f => f.FieldType == player);
         s_members = AccessTools.DeclaredMethod(bar, "PortraitMembers", Type.EmptyTypes);
         s_rect = AccessTools.DeclaredMethod(bar, "PortraitRect", [typeof(int)]);
         s_dialogue = AccessTools.DeclaredMethod(bar, "DialoguePortraitCharacters", Type.EmptyTypes);
@@ -38,6 +41,35 @@ internal static class PortraitRendering
         s_npcCell = (int)(AccessTools.Field(bar, "DialogueNpcCell")?.GetRawConstantValue() ?? throw new MissingFieldException("DialogueNpcCell"));
         s_playerCell = (int)(AccessTools.Field(bar, "DialoguePlayerCell")?.GetRawConstantValue() ?? throw new MissingFieldException("DialoguePlayerCell"));
         harmony.Patch(arrange, postfix: new HarmonyMethod(typeof(PortraitRendering), nameof(Arrange)));
+        harmony.Patch(s_dialogue, postfix: new HarmonyMethod(typeof(PortraitRendering), nameof(ProfileRequest)));
+        var arrangeBase = AccessTools.DeclaredMethod(player, "ArrangeBase", [typeof(bool)]);
+        if (arrangeBase?.ReturnType != typeof(List<UiControl>)) throw new NotSupportedException("Unsupported MeitouClient profile arrangement API.");
+        harmony.Patch(arrangeBase, prefix: new HarmonyMethod(typeof(PortraitRendering), nameof(HideWithoutHud)));
+    }
+
+    internal static void SetProfile(Meitou.Game.Ui.UiFrameContext frame, bool visible)
+    {
+        if (PersonalityUiBridge.InterfaceFor(frame) is not { } player) return;
+        var state = Profiles.GetValue(player, _ => new());
+        var lead = PersonalityUiBridge.LeadFor(player);
+        state.Key = frame.Text("chartweak3.profile");
+        state.Visible = visible && state.Key.Length > 0 && lead?.Appearance is not null;
+        state.Character = lead?.Id ?? CharacterId.None;
+    }
+
+    private static void HideWithoutHud(object __instance, bool hud)
+    {
+        if (!hud && Profiles.TryGetValue(__instance, out var state)) state.Visible = false;
+    }
+
+    // While no conversation is open, its first cell can show the exact live character in the profile.
+    // The host already poses and renders every character requested through this native entry point.
+    private static void ProfileRequest(object __instance, ref (CharacterId Npc, CharacterId Player)? __result)
+    {
+        if (__result is not null || s_barPlayer.GetValue(__instance) is not { } player
+            || !Profiles.TryGetValue(player, out var state) || !state.Visible
+            || PersonalityUiBridge.LeadFor(player) is not { Appearance: not null } lead || lead.Id != state.Character) return;
+        __result = (lead.Id, CharacterId.None);
     }
 
     private static void Arrange(object __instance, ref IReadOnlyList<UiControl> __result)
@@ -62,6 +94,23 @@ internal static class PortraitRendering
         for (int i = 0; i < __result.Count; i++)
         {
             var control = __result[i];
+            if (control.Name is "chartweak3-meitou:profile-primary" or "chartweak3-meitou:profile-secondary"
+                && ColourPalette.TryHex(control.Argument, out int rgb))
+            {
+                changed ??= [.. __result];
+                changed[i] = control with { Background = new((rgb >> 16 & 255) / 255f, (rgb >> 8 & 255) / 255f, (rgb & 255) / 255f, 1) };
+                continue;
+            }
+            if (control.Name == CharacterProfile.ImageName && Profiles.TryGetValue(__instance, out var profile) && profile.Visible
+                && control.Argument == profile.Key && PersonalityUiBridge.LeadFor(__instance)?.Id == profile.Character)
+            {
+                changed ??= [.. __result];
+                var properties = new Dictionary<string, string>(control.Properties)
+                {
+                    ["ImageTexture"] = "meitou:portraits", ["ImageFlipV"] = "true", ["ImageRect"] = (string)s_rect.Invoke(bar, [s_npcCell])!,
+                };
+                changed[i] = control = control with { Properties = properties };
+            }
             if (control.Type != "ImageBox" || control.Properties.GetValueOrDefault("ImageTexture") != "meitou:portraits"
                 || !images.TryGetValue(control.Properties.GetValueOrDefault("ImageRect") ?? "", out var view) || !File.Exists(view.Path)) continue;
             wanted.Add(view.Path);

@@ -1,11 +1,40 @@
 # CharTweak 3 for MeitouClient
 
-C# code mod for the CharTweak2 feature port. **0.4.0-beta.1** adds custom portraits
-with Linux/Windows file selection and images embedded in saves. It also includes personal clothing
+C# code mod for the CharTweak2 feature port. **0.4.0-beta.2** adds a selected-character
+profile and a hide/show shortcut for the launcher. Custom portraits support
+Linux/Windows file selection and images embedded in saves. It also includes personal clothing
 colors, a shared uniform with per-character membership, and named palette presets.
 The personality selectors (gameplay and new-game creation) and selected-player
 character editor button remain available in both HUD modes.
 The feature inventory and porting rules are in [docs/migration.md](docs/migration.md).
+
+## Character profile and launcher visibility
+
+Open **CharTweak 3** to see the selected character's portrait, name, current
+personality and two color swatches with hex values. Custom portraits appear here
+too; otherwise the portrait shows the actual character's current appearance.
+The profile follows the same selected/inspected character as the game's HUD and
+updates while paused. Its personality and colors describe applied state, so
+previewing a choice does not change the profile until that edit applies.
+
+Color labels distinguish **Personal**, **Uniform** and **Equipment**. Equipment
+shows the first dyeable item's native color pair; other equipment can have other
+dyes. **Equipment (no dye)** and **Unavailable** show neutral gray swatches instead
+of suggesting that a default red/black palette is applied. The compact layout
+retains the portrait, name, personality and swatches on small viewports.
+
+Press **backslash (`\`)** to hide/show only the upper-left launcher button. The
+main window's **Hide button / Show button** control does the same and keeps the
+window open. You can also recover the launcher through
+**Settings → Mods → CharTweak3-Meitou → Show CharTweak button**. Visibility is
+remembered in `interface.json` beside `palettes.json`, across games and restarts.
+
+On clients exposing `ModContext.AddKeyAction`, **Show/hide CharTweak button** is a
+normal rebindable Controls action with backslash as its default. **Meitou 0.22.1**
+predates that API: it uses a managed backslash compatibility shortcut instead,
+ignoring text fields, the title and keys already assigned to game actions.
+F11 keeps its existing frame-statistics binding. These controls use Meitou's
+managed input/settings APIs on Linux and Windows; there is no OS key polling.
 
 ## Personality selector
 
@@ -145,8 +174,9 @@ without cropping or stretching. Template/record portraits remain native.
 
 Build and headless integration checks cover Linux chooser process routing,
 both HUD modes and full disk save/load with the original image and cache removed.
-The Windows dialog ABI is checked on Linux; opening the actual Windows dialog
-and in-game GPU presentation still need testing on their respective systems.
+The user has confirmed the chooser, portraits and save persistence in-game on
+Linux. The Windows dialog ABI is checked on Linux; opening the actual Windows
+dialog still needs a Windows test. The new profile layout needs a visual check.
 See [portrait implementation notes](docs/custom-portraits.md).
 
 ## Build on Fedora/Linux
@@ -309,7 +339,8 @@ The Release build and checks pass on Fedora 43 against official 0.22.1. The
 archive contains only the mod's DLL, data file, manifest, README and license.
 The user has confirmed the gameplay personality selector, clothing colors,
 uniforms, draggable menus, open-window Apply/Reset and persistence work in-game.
-Custom portrait GPU presentation and the real OS chooser still need an in-game
-check; integration checks run without a GPU. The Windows dialog requires a native
-Windows test as well. See the manual portrait checks in
+Custom portrait presentation and the Linux OS chooser have also been confirmed.
+The new profile layout and launcher shortcut need an in-game check; integration
+checks run without a GPU. The Windows dialog requires a native Windows test.
+See the manual portrait checks in
 [docs/custom-portraits.md](docs/custom-portraits.md#validation-and-remaining-manual-checks).

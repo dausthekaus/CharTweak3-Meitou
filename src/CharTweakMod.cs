@@ -29,7 +29,8 @@ public sealed class CharTweakMod : IMod
         context.AddSystem("personalities", build => new PersonalitySystem(context.Data, build.Data.Factions), SystemAnchor.End);
         context.AddSystem("colours", _ => new ColourSystem(), SystemAnchor.End);
         context.AddSystem("portraits", _ => new PortraitSystem(portraits), SystemAnchor.End);
-        context.AddUi(new CharTweakUi(context, portraits));
+        var launcher = new LauncherVisibility(context);
+        context.AddUi(new CharTweakUi(context, portraits, launcher));
         context.Log($"CharTweak 3 {context.Manifest.Version}: personalities, character editor, colors, uniforms and custom portraits registered.");
     }
 }

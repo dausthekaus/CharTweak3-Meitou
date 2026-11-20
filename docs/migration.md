@@ -8,10 +8,13 @@ The legacy source and its bundled dependencies remain outside this repository.
 
 The [personality selector](../README.md#personality-selector) and
 [player character editor button](../README.md#character-editor) are implemented
-in 0.4.0-beta.1, along with independent personality drafts in the native new-game
+in 0.4.0-beta.2, along with independent personality drafts in the native new-game
 editor, personal clothing colors, shared uniform membership and saved palettes.
 See [the color implementation](character-colours.md) and
-[custom portraits](custom-portraits.md). Menu key rebinding remains future work.
+[custom portraits](custom-portraits.md). The main menu now includes a selected-character
+profile. Launcher visibility has a backslash shortcut and a native Mods setting;
+native Controls rebinding is used on clients exposing `AddKeyAction`, with a
+managed compatibility shortcut on 0.22.1. The old global F11 polling is not used.
 
 | Feature observed in CharTweak2 | Reference implementation |
 | --- | --- |
@@ -31,8 +34,9 @@ See [the color implementation](character-colours.md) and
 
 - Register feature systems through `ModContext.AddSystem` factories: a new world
   is built for each new game or load. Keep per-world state in those systems.
-- UI uses `AddUi(IUiExtension)` and Meitou UI types. Input uses `AddKeyAction`,
-  with rebinding on the client's Controls page. Choose an available default:
+- UI uses `AddUi(IUiExtension)` and Meitou UI types. Use `AddKeyAction` where the
+  client exposes it, with rebinding on Controls; 0.22.1 needs a managed input
+  compatibility path. Choose an available default:
   Meitou already uses F11. Win32 polling and MyGUI widgets do not transfer.
 - UI and key callbacks read snapshots and enqueue `SimCommand` values. Apply
   gameplay changes in a serial simulation phase; hash state that affects simulation.

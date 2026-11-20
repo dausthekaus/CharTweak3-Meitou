@@ -118,6 +118,14 @@ internal static class PortraitChecks
                 IReadOnlyList<UiControl> Menu() => ui.Arrange(mode, 1280, 900, Bind(), new Dictionary<string, UiRect> { [UiSlots.Overlay] = new(0, 0, 1280, 900) });
                 UiControl Control(string name) => Menu().Single(c => c.Name == "chartweak3-meitou:" + name);
                 void Click(string name) => ui.Dispatch(Control(name));
+                var profileBar = AccessTools.Property(uiType, "PortraitBar").GetValue(playerUi)!;
+                object? Request() => AccessTools.Method(profileBar.GetType(), "DialoguePortraitCharacters").Invoke(profileBar, null);
+                IReadOnlyList<UiControl> ProfileFrame()
+                {
+                    object?[] result = [playerUi, Menu()]; Call(Type("PortraitRendering"), "Arrange", null, result);
+                    return (IReadOnlyList<UiControl>)result[1]!;
+                }
+                UiControl ProfileImage() => ProfileFrame().Single(c => c.Name == "chartweak3-meitou:profile-portrait");
                 void FinishImport()
                 {
                     var wait = Stopwatch.StartNew();
@@ -127,14 +135,26 @@ internal static class PortraitChecks
                     throw new Exception("Portrait import did not finish: " + Control("status").Caption);
                 }
                 Select(first); Click("open"); Check(Control("portrait").Enabled, "player menu enables portrait chooser");
+                Check(Request() is ValueTuple<CharacterId, CharacterId> request && request.Item1 == first && request.Item2.IsNone,
+                    "profile requests selected live character, not its shared CHARACTER template");
+                Check(ProfileImage().Properties["ImageTexture"] == "meitou:portraits" && Control("name").Caption == "Portrait Pin", "profile shows native portrait and selected name");
+                Check(Control("profile-colours").Caption == "Colors: Equipment (no dye)", "undressed character profile has no invented default dye");
+                var profileHash = world.StateHash(); ProfileFrame(); Check(world.StateHash() == profileHash, "profile display never changes saved character state");
+                object?[] dialogue = [profileBar, ((CharacterId, CharacterId)?)(npc, second)];
+                Call(Type("PortraitRendering"), "ProfileRequest", null, dialogue);
+                Check(dialogue[1] is ValueTuple<CharacterId, CharacterId> nativeTalk && nativeTalk.Item1 == npc && nativeTalk.Item2 == second,
+                    "profile never replaces a real conversation's portrait requests");
                 Click("portrait"); FinishImport(); session.ApplyPausedCommandsNow(); Menu();
                 Check(Assigned(first) == id && Assigned(second) is null, "same-template characters keep independent portraits");
                 Check(Control("status").Caption == "Portrait applied." && Control("portrait-reset").Enabled, "menu acknowledges paused apply and stays open");
+                Check(ProfileImage().Properties["ImageTexture"] == "file:" + cache && ProfileImage().Bounds.Width == ProfileImage().Bounds.Height * 2,
+                    "profile uses assigned custom portrait with correct proportions");
                 Environment.SetEnvironmentVariable("CHARTWEAK_TEST_PICK", invalid); Click("portrait"); FinishImport();
                 Check(Assigned(first) == id, "invalid image import retains the previous assignment");
                 Environment.SetEnvironmentVariable("CHARTWEAK_TEST_PICK", source);
                 var before = world.Tick; Click("portrait-reset"); session.ApplyPausedCommandsNow();
                 Check(Control("status").Caption == "Original portrait restored." && Assigned(first) is null && world.Tick == before, "Reset keeps menu open and does not advance time");
+                Check(ProfileImage().Properties["ImageTexture"] == "meitou:portraits", "profile immediately restores native portrait after reset");
                 Click("next"); Check(Control("status").Caption == "Press Apply to change personality.", "later personality actions replace portrait feedback");
                 // Hold the process until selection changes, without timing assumptions about worker scheduling.
                 string release = Path.Combine(temporary, "release"); Environment.SetEnvironmentVariable("CHARTWEAK_TEST_RELEASE", release);
@@ -144,7 +164,14 @@ internal static class PortraitChecks
                 Tool(zenity, "exit 1\n"); Click("portrait"); FinishImport(); Check(Assigned(second) is null, "cancel leaves assignments intact");
                 world.Commands.Enqueue(new InspectCommand(npc) { Tick = world.Tick }); world.ApplyPausedInterfaceCommands();
                 Check(!Control("portrait").Enabled, "NPC portrait chooser disabled");
+                Check(Control("name").Caption == "Portrait NPC" && Request() is ValueTuple<CharacterId, CharacterId> npcRequest && npcRequest.Item1 == npc,
+                    "profile follows inspected NPC outside the squad portrait atlas");
+                ProfileFrame();
+                Call(Type("PortraitRendering"), "HideWithoutHud", null, playerUi, false);
+                Check(Request() is null, "editor/title/dialogue HUD suppression removes profile portrait requests");
+                Menu();
                 Click("close"); foreach (var registration in registrations) registration.Dispose();
+                Menu(); Check(Request() is null, "closing profile releases its extra native atlas request");
                 Tool(zenity, "printf '%s\\n' \"$CHARTWEAK_TEST_PICK\"\n");
                 Console.WriteLine($"PASS: {mode} async portrait chooser, paused apply/reset, cancellation, selection change and character isolation.");
             }

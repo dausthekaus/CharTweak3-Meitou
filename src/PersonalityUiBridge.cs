@@ -25,6 +25,7 @@ internal static class PersonalityUiBridge
     private static MethodInfo? s_lead;
     private static FieldInfo? s_session;
     private static FieldInfo? s_uiHost, s_frameHost;
+    private static PropertyInfo s_title = null!, s_editing = null!;
 
     /// <summary>
     /// The active HUD, held weakly so the mod does not retain closed interfaces or worlds.
@@ -42,8 +43,10 @@ internal static class PersonalityUiBridge
         s_session = AccessTools.DeclaredField(playerUi, "Session");
         s_uiHost = AccessTools.DeclaredField(playerUi, "_uiHost");
         s_frameHost = AccessTools.DeclaredField(typeof(UiFrameContext), "_host");
+        s_title = AccessTools.Property(playerUi, "TitleOpen"); s_editing = AccessTools.Property(playerUi, "UiEditing");
         if (bind?.ReturnType != typeof(UiBindings) || s_lead?.ReturnType != typeof(CharacterSnapshot)
-            || s_session?.FieldType != typeof(WorldSession) || s_uiHost?.FieldType != typeof(UiHost) || s_frameHost?.FieldType != typeof(UiHost))
+            || s_session?.FieldType != typeof(WorldSession) || s_uiHost?.FieldType != typeof(UiHost) || s_frameHost?.FieldType != typeof(UiHost)
+            || s_title?.PropertyType != typeof(bool) || s_editing?.PropertyType != typeof(bool))
             throw new NotSupportedException("Unsupported MeitouClient HUD selection API.");
 
         harmony.Patch(bind, postfix: new HarmonyMethod(typeof(PersonalityUiBridge), nameof(Bind)));
@@ -65,8 +68,15 @@ internal static class PersonalityUiBridge
         if (s_lead!.Invoke(__instance, null) is not CharacterSnapshot lead) return;
         __result.Text[NameKey] = lead.Name;
         var colours = session.World.Systems.OfType<ColourSystem>().FirstOrDefault();
+        ColourView? profileColours = null;
         if (colours is not null && colours.View.TryGetValue(lead.Id, out var colour))
+        {
+            profileColours = colour;
             __result.Text["chartweak3.colours"] = FormattableString.Invariant($"{colours.Session}|{lead.Id.Slot}|{lead.Id.Generation}|{(int)colour.Mode}|{colour.Palette.Primary}|{colour.Palette.Secondary}|{colour.Uniform.Primary}|{colour.Uniform.Secondary}");
+        }
+        __result.Text["chartweak3.profile"] = FormattableString.Invariant($"{system.Session}|{lead.Id.Slot}|{lead.Id.Generation}");
+        __result.Text["chartweak3.profile.look"] = lead.Appearance is null ? "false" : "true";
+        ProfileColours(__result, lead, profileColours);
         if (lead.Body is { Dead: true } || !system.View.TryGetValue(lead.Id, out int tag)) return;
         __result.Text[TargetKey] = FormattableString.Invariant($"{system.Session}|{lead.Id.Slot}|{lead.Id.Generation}|{tag}");
         if (session.World.Systems.OfType<PortraitSystem>().FirstOrDefault()?.View.ContainsKey(lead.Id) == true)
@@ -82,6 +92,34 @@ internal static class PersonalityUiBridge
     /// <summary>The current interface only when this frame belongs to its own UI host.</summary>
     internal static object? InterfaceFor(UiFrameContext frame) => s_playerUi is not null && s_playerUi.TryGetTarget(out var player)
         && ReferenceEquals(s_uiHost!.GetValue(player), s_frameHost!.GetValue(frame)) ? player : null;
+
+    /// <summary>The native lead accessor reads its published snapshot, including an inspected NPC.</summary>
+    internal static CharacterSnapshot? LeadFor(object player) => s_lead!.Invoke(player, null) as CharacterSnapshot;
+
+    internal static bool CanUseLauncherKey(WorldSession session) => s_playerUi is not null && s_playerUi.TryGetTarget(out var player)
+        && ReferenceEquals(s_session!.GetValue(player), session)
+        && s_title.GetValue(player) is false && s_editing.GetValue(player) is false;
+
+    private static void ProfileColours(UiBindings bindings, CharacterSnapshot lead, ColourView? applied)
+    {
+        string mode;
+        ColourPalette? palette = null;
+        if (applied is { Mode: ColourMode.Personal or ColourMode.Uniform })
+        {
+            palette = applied.Palette;
+            mode = applied.Mode == ColourMode.Personal ? "personal" : "uniform";
+        }
+        else if (lead.Appearance is { } look)
+        {
+            // Natural equipment can have several dyes: show the first dyeable piece, as the color editor does.
+            var dye = look.Parts.Where(p => ColourAppearance.Dyeable(p.Record)).Select(p => p.Colour)
+                .Concat(look.BodyLayers.Where(p => ColourAppearance.Dyeable(p.Record)).Select(p => p.Colour)).FirstOrDefault(c => c is not null);
+            mode = dye is null ? "none" : "equipment";
+            if (dye is not null) palette = new(dye.GetInt("color 1") & 0xFFFFFF, dye.GetInt("color 2") & 0xFFFFFF);
+        }
+        else mode = "unavailable";
+        bindings.Text["chartweak3.profile.colours"] = palette is null ? mode : $"{mode}|{ColourPalette.Hex(palette.Primary)}|{ColourPalette.Hex(palette.Secondary)}";
+    }
 
     /// <summary>
     /// Revalidates the world and current HUD character immediately before opening the native editor.

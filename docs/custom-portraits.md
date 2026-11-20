@@ -1,5 +1,39 @@
 # Custom portraits (0.4.0-beta.1)
 
+## Profile extension (0.4.0-beta.2)
+
+The main menu now includes a compact portrait/name/personality/color profile.
+`PersonalityUiBridge` binds the current snapshot's appearance and applied color
+mode; native equipment uses the first dyeable item, with no fake default when no
+dye exists. The profile's swatches are copied controls colored from their bound
+RGB arguments; dynamic style override stacks are not accumulated.
+
+The profile uses the exact character's live portrait. While the main menu is
+shown and no conversation exists, a scoped postfix on
+`PortraitBar.DialoguePortraitCharacters` requests that character in the unused
+conversation NPC cell. The host already includes such requests when loading,
+posing and rendering portraits, even for an inspected NPC outside the squad bar.
+Real conversation requests take priority. Closing the menu or suppressing the HUD
+for a title, editor or dialogue removes the extra request. The profile's image
+control maps to that cell and then uses the existing custom-image replacement,
+preserving aspect ratio. Nothing is stored on CHARACTER templates.
+
+`LauncherVisibility` registers a native boolean Mod setting shared by all HUD
+registrations. The main menu's toggle and the shortcut change it without closing
+the menu or advancing the world. Its `Changed` event also writes an atomic
+`interface.json` preference because baseline 0.22.1 only persists setting changes
+made through its own Settings page. This keeps visibility across restarts on all
+supported clients. Unreadable preferences are preserved and write failures are
+logged without disabling the in-memory toggle.
+
+`ModContext.AddKeyAction` is feature-detected at runtime rather than referenced
+from the 0.22.1 compilation baseline. On hosts providing it, an appropriately
+typed callback registers `toggle-launcher`, default `Key.Backslash`, in Controls.
+On 0.22.1, a `WorldSession.Tick` postfix reads the managed input's press edge, with
+current-interface, title, text-focus and existing-game-binding guards. F11 is
+unchanged. The newer Controls path needs checking on a host that provides it;
+headless checks run against 0.22.1 and cover the compatibility path.
+
 ## Import and UI
 
 `PortraitActions` belongs to each UI registration. Choose captures the original

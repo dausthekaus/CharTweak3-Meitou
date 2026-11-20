@@ -7,6 +7,7 @@ using Meitou.Data.Fcs;
 using Meitou.Data.Save;
 using Meitou.Data.Ui;
 using Meitou.Game.Host;
+using Meitou.Game.Host.Input;
 using Meitou.Game.Ui;
 using Meitou.Modding;
 using Meitou.Simulation;
@@ -126,7 +127,12 @@ internal static class PersonalColourChecks
             var ui = (UiHost)AccessTools.Field(uiType, "_uiHost").GetValue(player)!;
             var diagnostics = new List<UiDiagnostic>(); ui.Diagnostic += diagnostics.Add;
             var registrations = host.RegisterUi(ui.Register);
-            IReadOnlyList<UiControl> Menu() => ui.Arrange(uiMode, 1280, 900, BindHud(), new Dictionary<string, UiRect> { [UiSlots.Overlay] = new(0, 0, 1280, 900) });
+            IReadOnlyList<UiControl> Menu()
+            {
+                object?[] frame = [player, ui.Arrange(uiMode, 1280, 900, BindHud(), new Dictionary<string, UiRect> { [UiSlots.Overlay] = new(0, 0, 1280, 900) })];
+                AccessTools.Method(mod.GetType("CharTweak3.PortraitRendering", true)!, "Arrange").Invoke(null, frame);
+                return (IReadOnlyList<UiControl>)frame[1]!;
+            }
             void MenuClick(string name) => ui.Dispatch(Menu().Single(c => c.Name == "chartweak3-meitou:" + name));
             void Open(CharacterId id)
             {
@@ -136,6 +142,10 @@ internal static class PersonalColourChecks
                 MenuClick("colours"); Check(screens.IsOpen(Screen) && screens.HasModal && session.Simulation.RequestedPause, "native color modal opens and requests pause");
             }
             Select(first); MenuClick("open");
+            Check(BindHud().Text["chartweak3.profile.colours"] == "equipment|CCAA88|334455", "profile reads original equipment colors rather than a default palette");
+            Check(Menu().Single(c => c.Name == "chartweak3-meitou:profile-primary").Background == new Vector4(204 / 255f, 170 / 255f, 136 / 255f, 1)
+                && Menu().Single(c => c.Name == "chartweak3-meitou:profile-secondary").Background == new Vector4(51 / 255f, 68 / 255f, 85 / 255f, 1),
+                "profile swatches render actual primary and secondary RGB");
             var menuBefore = Menu().Single(c => c.Name == "chartweak3-meitou:window").Bounds;
             ArrangeScreens();
             var menuTitle = new Vector2(menuBefore.X + menuBefore.Width / 2, menuBefore.Y + 16);
@@ -160,6 +170,10 @@ internal static class PersonalColourChecks
             Check(movedWindow.X == windowBefore.X - 200 && movedWindow.Y == windowBefore.Y + 20 && !screens.CapturesPointer,
                 "color window moves aside and releases drag capture");
             Type("PrimaryHex", "191919"); Type("SecondaryHex", "B9AA87");
+            var launcherVisible = host.Settings.Single(g => g.ModId == "chartweak3-meitou").Settings.Single(s => s.Key == "ShowLauncher");
+            object visibilityBeforeTyping = launcherVisible.Get()!;
+            session.Input.SetKey(Key.Backslash, true); session.Tick(); session.Input.SetKey(Key.Backslash, false); session.Tick();
+            Check(Equals(launcherVisible.Get(), visibilityBeforeTyping), "launcher shortcut ignores focused color text fields");
             Click("PrimarySwatch");
             Check(screens.GetText(Screen, "PrimaryHex") == "DCDCDC" && Control("PrimaryQuick").Caption == "White"
                 && screens.GetText(Screen, "SecondaryHex") == "B9AA87", "primary swatch cycles its preset independently");
@@ -203,6 +217,7 @@ internal static class PersonalColourChecks
             int personalityBeforeApply = Cold(first).Personality;
             long tickBeforeApply = world.Tick;
             Check(session.ApplyPausedCommandsNow() && world.Tick == tickBeforeApply, "colors apply at paused boundary without a gameplay tick");
+            Check(BindHud().Text["chartweak3.profile.colours"].StartsWith("personal|FF2200|"), "profile follows applied personal color while paused");
             Check(Cold(first).Personality == personalityBeforeApply
                 && world.Commands.TakeDue(world.Tick, c => c.GetType().Name == "SetPersonality").Count == 1,
                 "paused color updates leave other custom commands queued");
@@ -225,6 +240,7 @@ internal static class PersonalColourChecks
                 "native hide-hats rebuild retains personal dye");
 
             Open(first); Click("Uniform"); Type("PrimaryHex", "2244FF"); Type("SecondaryHex", "FFFFFF"); Click("Apply"); session.ApplyPausedCommandsNow();
+            Check(BindHud().Text["chartweak3.profile.colours"] == "uniform|2244FF|FFFFFF", "profile identifies uniform colors exactly");
             Open(second); Click("Uniform");
             Check(screens.GetText(Screen, "PrimaryHex") == "2244FF", "another character sees current world uniform");
             Click("Apply"); session.ApplyPausedCommandsNow();
@@ -246,6 +262,7 @@ internal static class PersonalColourChecks
             Check(Primary(second) == 0xAABBCC && Cold(second).Appearance!.Shape == newLook.Shape, "appearance replacements keep palette and new body metadata");
             Open(second); Click("Reset"); session.ApplyPausedCommandsNow();
             Check(ReferenceEquals(Cold(second).Appearance, newLook), "Reset restores latest original appearance, including native item colors");
+            Check(BindHud().Text["chartweak3.profile.colours"] == "equipment|CCAA88|334455", "profile returns to native equipment colors after reset");
             Check(screens.IsOpen(Screen) && Control("Status").Caption == "Original colors restored."
                 && screens.GetText(Screen, "PrimaryHex") == "CCAA88", "Reset keeps window open and refreshes native color fields");
             Open(first); Click("Reset"); session.ApplyPausedCommandsNow();
