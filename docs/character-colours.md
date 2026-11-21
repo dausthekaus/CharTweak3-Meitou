@@ -4,6 +4,27 @@ Implemented in **0.3.0-beta.3**, targeting the actual MeitouClient 0.22.1 releas
 assemblies. The [README](../README.md#clothing-colors-and-uniform-presets) describes
 the controls and the Personal / Uniform / Reset behavior.
 
+The **0.4.0-beta.3** UI pass keeps the two color columns and existing behavior.
+The selected-character profile shows the applied portrait, name, personality
+and colors above the draft controls. Mode buttons read **Only this character**
+and **Share a uniform**, with explicit explanations of leaving/joining the
+uniform and updating its existing members. Quick-color names appear inside
+the clickable swatches with contrasting text; redundant quick-color arrow rows
+are removed. Saved named palettes remain. RGB sliders start collapsed behind
+**Advanced RGB controls**, while hex fields stay visible. Replacing the native
+layout on toggle preserves text, slider state and the dragged top-left position;
+the toggle never applies colors. Color application, hooks and save formats are
+unchanged by this UI pass.
+
+**0.4.0-beta.4** adds an unchecked **Include all selected squad members** checkbox
+in Uniform mode. Apply sends the same existing `SetColours` Uniform command to
+each eligible character in the current published selection, deduplicating the
+displayed character. The simulation retains all existing validation, uniform
+membership and color application behavior. Personal and Restore original remain
+single-character actions. Switching to Personal or reopening the editor clears
+the opt-in. Both profiles append the selected player-character count to the name
+when more than one is selected. There are no new save fields or formats.
+
 ## Rendering and character isolation
 
 `ColourAppearance` makes a shallow copy of the complete `CharacterAppearance`,
@@ -45,7 +66,7 @@ Clothing Colors screen uses real MyGUI edit boxes and byte-range sliders,
 registered lazily in MyGuiScreenHost and routed by validated ScreenRouter hooks.
 The movable Window root uses native title-strip dragging and retains the screen's
 offset across openings. Primary/secondary swatch buttons cycle the same eleven
-quick colors as their arrows, updating only the draft. Their hover/pressed fill
+quick colors, updating only the draft. Their hover/pressed fill
 retains the actual preview color.
 It shares the native modal input, keyboard focus, viewport fitting and pause
 handling. The host requires template-relative geometry for slider parts; the
@@ -125,8 +146,15 @@ sidecar capture/restore. They verify:
 - Main-menu and color-window dragging, retained positions, repeated Apply/Reset
   without closing, paused renderer snapshots with no tick advancement, and
   non-color custom commands remaining queued.
+- Applied profiles in the color screen, quick-color names and contrast,
+  mode explanations, Advanced toggles preserving valid/invalid drafts, and
+  both collapsed and expanded layouts fitting an 800x600 viewport.
 - Uniform enrollment/update/leave, nonmember isolation, original-color reset,
   stable cached looks, native EditCharacter commands and hidden-hat rebuilds.
+- Optional bulk uniform enrollment across selected squads, unchecked defaults,
+  current-selection targeting, exclusion of animals/missing appearances, and
+  unchanged single-character Personal/Restore behavior. Selection notes remain
+  visible in both color and main profiles, including the compact main layout.
 - Native saves written to disk and read back, independent personal preferences,
   loaded uniform membership, repeated saves and import without the sidecar.
 - Invalid modes/RGB, NPC/dead/reused-slot/stale-world targets and state hashes
@@ -136,9 +164,9 @@ sidecar capture/restore. They verify:
 
 The earlier ColourChecks probe also verifies native per-item dye persistence and
 faction isolation. Checks use synthetic assets without a GPU. The user has
-confirmed visible colors and the color window's dragging in-game. The latest
-open-window apply/reset and main-menu dragging still need an in-game check.
+confirmed visible colors, persistence, open-window apply/reset and dragging
+in-game. The revised color layout still needs an in-game visual check.
 For regression testing, compare two characters wearing identical
 dyeable clothing, try both mesh armor and shirt overlays, then test uniform
 updates, leaving/reset, equipment exchange, native editor confirmation, hide hats
-and save/reload. This beta does not add custom portraits.
+and save/reload. Custom portraits are described in [their own notes](custom-portraits.md).

@@ -12,7 +12,7 @@ internal sealed class LauncherVisibility
 {
     private sealed class Options
     {
-        [Setting("Show CharTweak button", Hint = "Show the launcher at the upper left. Its keyboard shortcut also toggles this setting.")]
+        [Setting("Show CharTweak button (\\)", Hint = "Press backslash (\\) to show/hide the launcher at the upper left, even when the CharTweak menu is closed. This is the default shortcut; if you rebound it in Controls, use that key instead.")]
         public bool ShowLauncher { get; set; } = true;
     }
 

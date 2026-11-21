@@ -29,6 +29,8 @@ internal static class PersonalColourChecks
         var race = new FcsRecord { StringId = "personal-colour-race", RecordType = FcsRecordType.Race };
         var hero = new FcsRecord { StringId = "personal-colour-hero", RecordType = FcsRecordType.Character };
         hero.References["race"] = [new FcsReference(race.StringId, 100, 0, 0)];
+        var animalRecord = new FcsRecord { StringId = "personal-colour-animal", RecordType = FcsRecordType.AnimalCharacter };
+        animalRecord.References["race"] = [new FcsReference(race.StringId, 100, 0, 0)];
         var dye = new FcsRecord { StringId = "personal-colour-original", RecordType = FcsRecordType.ColorData };
         dye.Ints["color 1"] = 0xCCAA88; dye.Ints["color 2"] = 0x334455;
         FcsRecord Armour(string id, int slot, bool protectedColour)
@@ -41,7 +43,7 @@ internal static class PersonalColourChecks
             armour.References["color"] = [new FcsReference(dye.StringId, 100, 0, 0)];
             return armour;
         }
-        records.Records.AddRange([race, hero, dye, Armour("personal-shirt", (int)AttachSlot.Shirt, false),
+        records.Records.AddRange([race, hero, animalRecord, dye, Armour("personal-shirt", (int)AttachSlot.Shirt, false),
             Armour("personal-hat", (int)AttachSlot.Hat, false), Armour("personal-protected", (int)AttachSlot.Body, true)]);
         db.Apply(records, "personal-colour-check.mod");
         var data = PopulationData.Create(db, [], new GeneratedAppearances(db, Path.GetTempPath()));
@@ -106,6 +108,12 @@ internal static class PersonalColourChecks
             (id, controls) => AccessTools.Method(routerType, "AddFaithfulContent").Invoke(router, [id, controls]));
         IReadOnlyList<UiControl> Frame(int width = 1280, int height = 900) => ArrangeScreens(width, height).Single(s => s.Id == Screen).Controls;
         UiControl Control(string name) => Frame().Single(c => c.Name == name);
+        IReadOnlyList<UiControl> RenderColourFrame()
+        {
+            object?[] frame = [player, Frame()];
+            AccessTools.Method(mod.GetType("CharTweak3.PortraitRendering", true)!, "Arrange").Invoke(null, frame);
+            return (IReadOnlyList<UiControl>)frame[1]!;
+        }
         void Click(string name)
         {
             var c = Control(name);
@@ -116,10 +124,11 @@ internal static class PersonalColourChecks
             Click(name); Check(screens.EditKey(UiEditKey.SelectAll), "native edit box selects text");
             foreach (char value in text) Check(screens.TextInput(value), "native edit box accepts text");
         }
-        void Select(CharacterId id)
+        void SelectMany(params CharacterId[] ids)
         {
-            world.Commands.Enqueue(new SelectCommand([id]) { Tick = world.Tick }); world.ApplyPausedInterfaceCommands();
+            world.Commands.Enqueue(new SelectCommand(ids) { Tick = world.Tick }); world.ApplyPausedInterfaceCommands();
         }
+        void Select(CharacterId id) => SelectMany(id);
 
         foreach (var uiMode in new[] { UiMode.Faithful, UiMode.Meitou })
         {
@@ -159,9 +168,26 @@ internal static class PersonalColourChecks
             MenuClick("close");
             Open(first);
             Check(!screens.IsOpen("chartweak3-menu-drag"), "opening colors hides main menu drag strip");
+            Check(Control("Character").Caption == "Color Pin" && Control("ProfilePersonality").Caption.StartsWith("Personality: ")
+                && Control("ProfileColours").Caption == "Current colors: Equipment", "color window retains the character's applied profile");
+            Check(RenderColourFrame().Single(c => c.Name == "chartweak3-meitou:profile-portrait").Properties["ImageTexture"] == "meitou:portraits",
+                "color window requests and shows the exact live portrait through the existing renderer");
+            Check(!Frame().Any(c => c.Type == "ScrollBar" || c.Name is "PrimaryPrevious" or "PrimaryNext" or "SecondaryPrevious" or "SecondaryNext" or "PrimaryQuick" or "SecondaryQuick"),
+                "RGB starts collapsed and redundant quick-color rows are removed");
+            Check(Control("Personal").Caption.Contains("Only this character") && Control("Personal").Caption.Contains("Selected")
+                && Control("ModeDetail").Caption.Contains("leaves the shared uniform"), "personal choice explains its effect in natural language");
+            Click("Uniform");
+            Check(Control("Uniform").Caption.Contains("Selected") && Control("ModeHint").Caption.Contains("joins this character")
+                && Control("ModeDetail").Caption.Contains("Everyone already using") && Control("Apply").Caption == "Apply shared uniform",
+                "uniform choice explains enrollment and updates for existing members");
+            Click("Personal");
             screens.SetOffset(Screen, Vector2.Zero);
             Check(Frame(800, 600).All(c => c.Bounds.X >= 0 && c.Bounds.Y >= 0 && c.Bounds.X + c.Bounds.Width <= 800 && c.Bounds.Y + c.Bounds.Height <= 600),
                 "native color dialog fits an 800x600 viewport");
+            Click("Advanced");
+            Check(Frame(800, 600).All(c => c.Bounds.X >= 0 && c.Bounds.Y >= 0 && c.Bounds.X + c.Bounds.Width <= 800 && c.Bounds.Y + c.Bounds.Height <= 600),
+                "expanded two-column color dialog fits an 800x600 viewport");
+            Click("Advanced");
             var windowBefore = Control("ColourWindow").Bounds;
             var title = new Vector2(windowBefore.X + windowBefore.Width / 2, windowBefore.Y + 20);
             Check(screens.PointerDown(title) && screens.CapturesPointer, "title press starts native window drag");
@@ -175,25 +201,39 @@ internal static class PersonalColourChecks
             session.Input.SetKey(Key.Backslash, true); session.Tick(); session.Input.SetKey(Key.Backslash, false); session.Tick();
             Check(Equals(launcherVisible.Get(), visibilityBeforeTyping), "launcher shortcut ignores focused color text fields");
             Click("PrimarySwatch");
-            Check(screens.GetText(Screen, "PrimaryHex") == "DCDCDC" && Control("PrimaryQuick").Caption == "White"
+            Check(screens.GetText(Screen, "PrimaryHex") == "DCDCDC" && Control("PrimarySwatch").Caption == "White" && Control("PrimarySwatch").TextColour == new Vector4(0, 0, 0, 1)
                 && screens.GetText(Screen, "SecondaryHex") == "B9AA87", "primary swatch cycles its preset independently");
             Check(Control("PrimarySwatch").HoverColour == Control("PrimarySwatch").Background,
                 "swatch retains its actual color under pointer");
             for (int i = 0; i < 10; i++) Click("PrimarySwatch");
             Check(screens.GetText(Screen, "PrimaryHex") == "191919", "primary swatch wraps through all eleven quick colors");
             Click("SecondarySwatch");
-            Check(screens.GetText(Screen, "SecondaryHex") == "191919" && Control("SecondaryQuick").Caption == "Black",
+            Check(screens.GetText(Screen, "SecondaryHex") == "191919" && Control("SecondarySwatch").Caption == "Black" && Control("SecondarySwatch").TextColour == Vector4.One,
                 "secondary swatch wraps from Bone to Black");
             Check(Control("ColourWindow").Bounds == movedWindow, "swatch clicks do not drag the window");
             Type("PrimaryHex", "CCAA88"); Type("SecondaryHex", "334455");
+            Type("PresetName", "Unapplied draft");
+            Click("Advanced");
+            Check(Frame().Count(c => c.Type == "ScrollBar") == 6 && screens.GetText(Screen, "PresetName") == "Unapplied draft"
+                && screens.GetText(Screen, "PrimaryHex") == "CCAA88", "Advanced exposes all RGB sliders without discarding draft text or palette");
+            var expanded = Control("ColourWindow").Bounds;
+            Check(expanded.X == movedWindow.X && expanded.Y == movedWindow.Y, "expanding Advanced preserves the dragged top-left position");
+            movedWindow = Control("ColourWindow").Bounds;
             Check(Control("PrimaryR").Properties["BarMax"] == "255", "RGB slider has full byte range");
             Click("PrimaryR@SecondPart");
             Check(Control("PrimaryRValue").Caption != "204", "native slider track changes preview");
             Type("PrimaryHex", "#FF2200"); Type("SecondaryHex", "11CC44");
+            Check(Control("PrimarySwatch").Caption == "Custom" && Control("ProfilePrimary").Background == new Vector4(204 / 255f, 170 / 255f, 136 / 255f, 1),
+                "custom names stay inside swatches while the profile keeps applied colors distinct from the draft");
             Check(Control("PrimaryRValue").Caption == "255" && Control("SecondaryGValue").Caption == "204", "hex entry synchronizes RGB sliders");
             Check(ReferenceEquals(Cold(first).Appearance, original), "draft preview never mutates live appearance");
             Type("PrimaryHex", "broken");
             Check(!Control("Apply").Enabled, "malformed hex disables Apply");
+            Click("Advanced");
+            Check(!Frame().Any(c => c.Type == "ScrollBar") && screens.GetText(Screen, "PrimaryHex") == "broken" && !Control("Apply").Enabled,
+                "collapsing Advanced preserves invalid input and validation");
+            Click("Advanced");
+            Check(screens.GetText(Screen, "PresetName") == "Unapplied draft" && !Control("Apply").Enabled, "reopening Advanced keeps draft and validation state");
             Type("PrimaryHex", "FF2200");
             string presetName = "Scout " + uiMode;
             Type("PresetName", presetName); Click("SavePreset");
@@ -203,7 +243,9 @@ internal static class PersonalColourChecks
             Click("Cancel");
             Check(!screens.HasModal && !session.Simulation.RequestedPause && ReferenceEquals(Cold(first).Appearance, original), "Cancel releases modal and discards preview");
             Open(first);
-            Check(Control("ColourWindow").Bounds == movedWindow, "reopening color window retains its moved position");
+            var reopened = Control("ColourWindow").Bounds;
+            Check(reopened.X == movedWindow.X && reopened.Y == movedWindow.Y, "reopening color window retains its moved position");
+            movedWindow = reopened;
             route.Invoke(router, [new MyGuiEvent(Screen, stale.Name, stale.Action)]);
             Check(screens.IsOpen(Screen), "stale modal action cannot commit a reopened draft");
             // Select saved preset by its name (the library is shared across HUD modes).
@@ -218,6 +260,8 @@ internal static class PersonalColourChecks
             long tickBeforeApply = world.Tick;
             Check(session.ApplyPausedCommandsNow() && world.Tick == tickBeforeApply, "colors apply at paused boundary without a gameplay tick");
             Check(BindHud().Text["chartweak3.profile.colours"].StartsWith("personal|FF2200|"), "profile follows applied personal color while paused");
+            Check(Control("ProfileColours").Caption == "Current colors: Personal" && Control("ProfilePrimary").Background == new Vector4(1, 34 / 255f, 0, 1),
+                "color screen's profile refreshes applied state immediately after Apply while paused");
             Check(Cold(first).Personality == personalityBeforeApply
                 && world.Commands.TakeDue(world.Tick, c => c.GetType().Name == "SetPersonality").Count == 1,
                 "paused color updates leave other custom commands queued");
@@ -234,6 +278,16 @@ internal static class PersonalColourChecks
             Type("PrimaryHex", "FF3300"); Click("Apply"); session.ApplyPausedCommandsNow();
             Check(Primary(first) == 0xFF3300 && screens.IsOpen(Screen), "repeated Apply updates colors while modal remains open");
             Type("PrimaryHex", "FF2200"); Click("Apply"); session.ApplyPausedCommandsNow();
+            var appliedBeforeBack = Cold(first).Appearance;
+            Type("PrimaryHex", "000001"); Click("Back");
+            Check(!screens.HasModal && !session.Simulation.RequestedPause && ReferenceEquals(Cold(first).Appearance, appliedBeforeBack),
+                "Back releases the color modal and retains applied colors without applying the draft");
+            Check(Menu().Single(c => c.Name == "chartweak3-meitou:window").Bounds == menuMoved
+                && Menu().Single(c => c.Name == "chartweak3-meitou:name").Caption == "Color Pin"
+                && screens.IsOpen("chartweak3-menu-drag"), "Back restores the main character menu at its dragged position");
+            MenuClick("colours");
+            Check(screens.IsOpen(Screen) && screens.GetText(Screen, "PrimaryHex") == "FF2200",
+                "reopening colors after Back discards the unapplied draft");
             var stableLook = Cold(first).Appearance; world.RunTick(); Check(ReferenceEquals(stableLook, Cold(first).Appearance), "unchanged colors reuse appearance rather than rebuilding every tick");
             var bare = Cold(first).Appearance!.WithoutHat(db, Path.GetTempPath());
             Check(bare.Parts.All(p => p.Slot != AttachSlot.Hat) && bare.Parts.Single(p => p.Record.StringId == "personal-shirt").Colour!.GetInt("color 1") == 0xFF2200,
@@ -250,6 +304,54 @@ internal static class PersonalColourChecks
             Open(second); Click("Personal"); Type("PrimaryHex", "AABBCC"); Click("Apply"); session.ApplyPausedCommandsNow();
             Apply(first, 2, 0x445566, 0xFFFFFF);
             Check(Primary(first) == 0x445566 && Primary(second) == 0xAABBCC, "Personal leaves uniform membership");
+
+            // Optional bulk enrollment reuses ordinary uniform commands for the current selection.
+            Click("Cancel"); SelectMany(first, second); MenuClick("open");
+            Check(Menu().Single(c => c.Name == "chartweak3-meitou:name").Caption == "Color Pin (2 selected)",
+                "main profile notes multiple selected player characters");
+            var compactProfile = ui.Arrange(uiMode, 800, 360, BindHud(), new Dictionary<string, UiRect> { [UiSlots.Overlay] = new(0, 0, 800, 360) });
+            Check(compactProfile.Single(c => c.Name == "chartweak3-meitou:name").Caption.Contains("(2 selected)"),
+                "compact main profile retains the selection note");
+            MenuClick("colours");
+            Check(Control("Character").Caption == "Color Pin (2 selected)" && Control("IncludeSelected").Properties["Checked"] == "false"
+                && Control("IncludeSelectedLabel").Caption == "Include all selected squad members", "uniform bulk checkbox starts unchecked and color profile notes multiple selection");
+            Type("PrimaryHex", "112233"); Click("Apply"); session.ApplyPausedCommandsNow();
+            Check(Primary(first) == 0x112233 && Primary(second) == 0xAABBCC && ReferenceEquals(Cold(untouched).Appearance, original),
+                "unchecked uniform still enrolls only the displayed character");
+            Click("IncludeSelectedLabel");
+            Check(Control("IncludeSelected").Properties["Checked"] == "true" && Primary(second) == 0xAABBCC,
+                "clicking checkbox label opts in without applying colors");
+            Click("Advanced");
+            Check(Control("IncludeSelected").Properties["Checked"] == "true", "Advanced preserves the bulk checkbox");
+            Click("Advanced");
+            var animal = Spawn("Color animal " + uiMode);
+            var animalLook = CharacterAppearance.BuildAnimal(db, Path.GetTempPath(), db.Find(animalRecord.StringId)!);
+            Cold(animal).Appearance = animalLook;
+            var missingLook = Spawn("Color missing look " + uiMode); Cold(missingLook).Appearance = null;
+            SelectMany(first, untouched, animal, missingLook); // Keep the displayed character; use the current selection when Apply is pressed.
+            Type("PrimaryHex", "667788"); Type("SecondaryHex", "102030"); Click("Apply");
+            Check(Primary(first) == 0x112233 && ReferenceEquals(Cold(untouched).Appearance, original), "bulk Apply queues without live UI writes");
+            session.ApplyPausedCommandsNow();
+            Check(Primary(first) == 0x667788 && Primary(untouched) == 0x667788 && Primary(second) == 0xAABBCC,
+                "bulk enrollment uses current selected members across squads and leaves unselected nonmembers alone");
+            var savedAssignment = AccessTools.Method(mod.GetType("CharTweak3.ColourSave", true)!, "Get");
+            Check(ReferenceEquals(Cold(animal).Appearance, animalLook) && savedAssignment.Invoke(null, [Cold(animal)]) is null
+                && Cold(missingLook).Appearance is null && savedAssignment.Invoke(null, [Cold(missingLook)]) is null,
+                "bulk enrollment skips selected animals and characters without an appearance");
+            SelectMany(first, second); Type("PrimaryHex", "8899AA"); Click("Apply"); session.ApplyPausedCommandsNow();
+            Check(Primary(first) == 0x8899AA && Primary(second) == 0x8899AA && Primary(untouched) == 0x8899AA,
+                "bulk joins every eligible selection while existing unselected uniform members still update");
+            Click("Reset"); session.ApplyPausedCommandsNow();
+            Check(ReferenceEquals(Cold(first).Appearance, original) && Primary(second) == 0x8899AA && Primary(untouched) == 0x8899AA,
+                "Restore original remains specific to the displayed character with bulk checked");
+            Check(!Frame().Any(c => c.Name is "IncludeSelected" or "IncludeSelectedLabel"), "Personal hides the bulk uniform checkbox");
+            Click("Uniform"); Check(Control("IncludeSelected").Properties["Checked"] == "false", "returning from Personal clears bulk opt-in");
+            Click("IncludeSelected"); Click("Personal"); Type("PrimaryHex", "334455"); Click("Apply"); session.ApplyPausedCommandsNow();
+            Check(Primary(first) == 0x334455 && Primary(second) == 0x8899AA, "Personal never applies to multiple selected characters");
+            Click("Uniform"); Click("IncludeSelected"); Click("Cancel");
+            Open(first); Click("Uniform"); Check(Control("IncludeSelected").Properties["Checked"] == "false", "reopening resets bulk opt-in");
+            world.Characters.Remove(animal); world.Characters.Remove(missingLook);
+            Apply(untouched, 0, 0, 0); Apply(first, 2, 0x445566, 0xFFFFFF); Apply(second, 1, 0xAABBCC, 0xFFFFFF);
 
             // Exercise the real native edit command before testing other appearance replacements.
             var editedBody = CharacterDraft.Copy(body); editedBody.Floats["Height"] = 120;

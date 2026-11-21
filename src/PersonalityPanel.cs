@@ -66,7 +66,7 @@ internal sealed class PersonalityPanel(UiRegistration registration, ModContext c
     internal void OpenColours(UiActionContext action)
     {
         _portraits.ClearStatus();
-        if (ColourEditor.Open(action.Frame, out string status)) { _open = false; MainPanelDrag.Hide(action.Frame); }
+        if (ColourEditor.Open(action.Frame, () => _open = true, out string status)) { _open = false; MainPanelDrag.Hide(action.Frame); }
         _status = status;
     }
 
@@ -180,8 +180,11 @@ internal sealed class PersonalityPanel(UiRegistration registration, ModContext c
             && PersonalityOptions.All[_index].Tag != _pending;
         float actionHeight = compact ? 24 : 32;
         float buttonWidth = (width - 48) / 3;
+        if (height >= 222)
+            window.Children.Add(Label("launcher-hint", compact ? "\\: show/hide launcher (default)" : "Press \\ to show/hide the launcher (default shortcut).",
+                new UiPlacement(width - 32, compact ? 18 : 20, 16, Bottom: compact ? 36 : 44), "profile-text"));
         window.Children.Add(Button("apply", "Apply", new UiPlacement(buttonWidth, actionHeight, 16, Bottom: 8), canApply));
-        window.Children.Add(Button("launcher", launcher.Visible ? (compact ? "Hide" : "Hide button") : (compact ? "Show" : "Show button"),
+        window.Children.Add(Button("launcher", launcher.Visible ? (compact ? "Hide (\\)" : "Hide button (\\)") : (compact ? "Show (\\)" : "Show button (\\)"),
             new UiPlacement(buttonWidth, actionHeight, 24 + buttonWidth, Bottom: 8)));
         window.Children.Add(Button("close", "Close", new UiPlacement(buttonWidth, actionHeight, 32 + buttonWidth * 2, Bottom: 8)));
         return window;

@@ -11,7 +11,8 @@ internal sealed class CharacterProfile(UiRegistration registration)
     internal void Add(UiNode window, UiFrameContext frame, PersonalityTarget? target, float width, bool compact)
     {
         string name = target?.Name ?? PersonalityUiBridge.Name(frame);
-        if (name.Length > 32) name = name[..29] + "...";
+        int.TryParse(frame.Text("chartweak3.selection.count"), NumberStyles.Integer, CultureInfo.InvariantCulture, out int selected);
+        name = NameWithSelection(name, selected);
         float left = compact ? 60 : 136;
         window.Children.Add(Label("name", name, new(width - left - 16, compact ? 16 : 26, left, compact ? 28 : 44), "profile-name"));
         string personality = target is null ? "Select a living character." : $"Current: {PersonalityOptions.Label(target.Tag)}";
@@ -46,6 +47,13 @@ internal sealed class CharacterProfile(UiRegistration registration)
         }
         void Swatch(string id, float x, float y, int rgb) => window.Children.Add(new UiNode(registration.Key(id))
         { Placement = new(swatchSize, swatchSize, x, y), Style = registration.Key(id), Pickable = false, Argument = ColourPalette.Hex(rgb) });
+    }
+
+    internal static string NameWithSelection(string name, int selected)
+    {
+        string note = selected > 1 ? $" ({selected} selected)" : "";
+        int limit = 32 - note.Length;
+        return (name.Length > limit ? name[..(limit - 3)] + "..." : name) + note;
     }
 
     private UiNode Label(string name, string text, UiPlacement placement, string style = "profile-text") =>

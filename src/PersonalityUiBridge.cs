@@ -65,6 +65,7 @@ internal static class PersonalityUiBridge
         if (system is null) return;
         if (s_playerUi is null) s_playerUi = new WeakReference<object>(__instance);
         else s_playerUi.SetTarget(__instance);
+        __result.Text["chartweak3.selection.count"] = session.CurrentSnapshot.Characters.Count(c => c.IsPlayer && c.Selected).ToString(CultureInfo.InvariantCulture);
         if (s_lead!.Invoke(__instance, null) is not CharacterSnapshot lead) return;
         __result.Text[NameKey] = lead.Name;
         var colours = session.World.Systems.OfType<ColourSystem>().FirstOrDefault();
@@ -100,7 +101,7 @@ internal static class PersonalityUiBridge
         && ReferenceEquals(s_session!.GetValue(player), session)
         && s_title.GetValue(player) is false && s_editing.GetValue(player) is false;
 
-    private static void ProfileColours(UiBindings bindings, CharacterSnapshot lead, ColourView? applied)
+    internal static void ProfileColours(UiBindings bindings, CharacterSnapshot lead, ColourView? applied)
     {
         string mode;
         ColourPalette? palette = null;

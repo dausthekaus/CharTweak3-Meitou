@@ -1,7 +1,9 @@
 # CharTweak 3 for MeitouClient
 
-C# code mod for the CharTweak2 feature port. **0.4.0-beta.2** adds a selected-character
-profile and a hide/show shortcut for the launcher. Custom portraits support
+C# code mod for the CharTweak2 feature port. **0.4.0-beta.4** adds optional uniform
+assignment to all selected squad members and selection-count notes in both profiles.
+The color window includes clear mode choices, a character profile and optional RGB controls.
+The main menu includes a selected-character profile and a hide/show shortcut for the launcher. Custom portraits support
 Linux/Windows file selection and images embedded in saves. It also includes personal clothing
 colors, a shared uniform with per-character membership, and named palette presets.
 The personality selectors (gameplay and new-game creation) and selected-player
@@ -16,6 +18,8 @@ too; otherwise the portrait shows the actual character's current appearance.
 The profile follows the same selected/inspected character as the game's HUD and
 updates while paused. Its personality and colors describe applied state, so
 previewing a choice does not change the profile until that edit applies.
+When several player characters are selected, both the main and color-window
+profiles show **(N selected)** beside the displayed character's name.
 
 Color labels distinguish **Personal**, **Uniform** and **Equipment**. Equipment
 shows the first dyeable item's native color pair; other equipment can have other
@@ -24,9 +28,11 @@ of suggesting that a default red/black palette is applied. The compact layout
 retains the portrait, name, personality and swatches on small viewports.
 
 Press **backslash (`\`)** to hide/show only the upper-left launcher button. The
-main window's **Hide button / Show button** control does the same and keeps the
-window open. You can also recover the launcher through
-**Settings → Mods → CharTweak3-Meitou → Show CharTweak button**. Visibility is
+main window's **Hide button (\) / Show button (\)** control does the same and keeps the
+window open. The profile includes a reminder that backslash restores the launcher.
+You can also recover the launcher through
+**Settings → Mods → CharTweak3-Meitou → Show CharTweak button (\)**, whose help text
+explains the shortcut works with the menu closed. Visibility is
 remembered in `interface.json` beside `palettes.json`, across games and restarts.
 
 On clients exposing `ModContext.AddKeyAction`, **Show/hide CharTweak button** is a
@@ -94,27 +100,43 @@ Legacy .NET 10 clients require a separate build.
 ## Clothing colors and uniform presets
 
 Select a living player character, open **CharTweak 3 → Clothing Colors**.
-The native color window provides two color swatches, six RGB sliders (0–255),
-hex fields (`RRGGBB` or `#RRGGBB`) and the eleven quick colors from CharTweak2.
+The two-column color window keeps the selected character's portrait, name,
+personality and currently applied colors at the top. The large color squares
+show your draft; click either square to cycle through the eleven quick colors
+from CharTweak2. Each square displays the color's name, or **Custom** for other
+values, with contrasting text. Hex fields (`RRGGBB` or `#RRGGBB`) stay visible;
+turn **Advanced RGB controls** on to show the six RGB sliders (0–255).
 Drag the window by its title strip to move it aside. Its position is retained
-when reopening it in the same interface. Click either large color swatch to cycle
-that channel through the eleven quick colors; the arrows also cycle them.
-Previewing changes only the window's swatches. **Apply** and **Reset original**
+when reopening it in the same interface. Toggling Advanced keeps your draft and
+window position. Previewing changes only the large swatches; the profile keeps
+showing applied colors. **Apply** and **Restore original**
 keep the window open. Colors update at the next safe interface boundary even
 while paused, without advancing game time; wait for **Colors applied.** or
 **Original colors restored.** before saving. Use **Close** or Escape when finished.
 Closing discards any unapplied draft and retains changes already applied.
+**Back** does the same and returns to the main CharTweak menu.
 
 | Mode | What Apply does |
 | --- | --- |
-| **Personal** | Sets this character's primary/secondary palette and leaves any uniform membership. |
-| **Uniform** | Enrolls this character and updates the shared uniform colors for every enrolled character in this save. |
-| **Reset original** | Removes this character's override and uniform membership, restoring its current equipment's native colors. |
+| **Only this character (Personal)** | Sets this character's primary/secondary palette and leaves any uniform membership. |
+| **Share a uniform (Uniform)** | Enrolls this character and updates the shared uniform colors for every enrolled character in this save. |
+| **Restore original** | Removes this character's override and uniform membership, restoring its current equipment's native colors. |
 
 To join the existing uniform, select another character, open Clothing Colors,
-choose **Uniform**, then **Apply uniform** without editing its colors. Unenrolled
+choose **Share a uniform**, then **Apply shared uniform** without editing its colors. Unenrolled
 characters retain their own colors. Uniforms are per save; they do not recolor the
 whole player faction automatically.
+
+To enroll several characters at once, select them in the game, open Clothing
+Colors, choose **Share a uniform**, and check **Include all selected squad members**
+before pressing **Apply shared uniform**. The checkbox starts unchecked every
+time you open the window and clears when you switch to Personal. It uses the
+current selection at Apply, including selections across squads; living player
+characters with a humanoid appearance are eligible. NPCs, animals, dead characters
+and characters without an appearance are excluded. Existing uniform members
+still receive shared color updates, including members outside the selection.
+**Only this character** and **Restore original** keep their single-character behavior.
+Checking the box does not apply any changes by itself.
 
 For named palettes, enter a **Preset name** and click **Save new**. The selector
 arrows choose a saved palette; **Load** copies it into the draft in either mode.
@@ -176,7 +198,7 @@ Build and headless integration checks cover Linux chooser process routing,
 both HUD modes and full disk save/load with the original image and cache removed.
 The user has confirmed the chooser, portraits and save persistence in-game on
 Linux. The Windows dialog ABI is checked on Linux; opening the actual Windows
-dialog still needs a Windows test. The new profile layout needs a visual check.
+dialog still needs a Windows test. The revised color layout needs an in-game visual check.
 See [portrait implementation notes](docs/custom-portraits.md).
 
 ## Build on Fedora/Linux
