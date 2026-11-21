@@ -12,6 +12,13 @@ internal sealed class PersonalityPanel(UiRegistration registration, ModContext c
     private readonly CharacterProfile _profile = new(registration);
     internal void ChoosePortrait(UiActionContext action) => _portraits.Choose(action);
     internal void ResetPortrait(UiActionContext action) => _portraits.Reset(action);
+    internal void OpenPhoto(UiActionContext action)
+    {
+        _portraits.ClearStatus();
+        if (_portraits.Busy) return;
+        if (PhotoEditor.Open(action.Frame, () => _open = true, out string status)) { _open = false; MainPanelDrag.Hide(action.Frame); }
+        _status = status;
+    }
     /// <summary>
     /// Whether this panel is visible.
     /// </summary>
@@ -172,10 +179,13 @@ internal sealed class PersonalityPanel(UiRegistration registration, ModContext c
             new UiPlacement((width - 48) / 2, compact ? 22 : 36, 16, compact ? 122 : 244), PersonalityUiBridge.CanOpenEditor(frame)));
         window.Children.Add(Button("colours", "Clothing Colors",
             new UiPlacement((width - 48) / 2, compact ? 22 : 36, width / 2 + 8, compact ? 122 : 244), ColourTarget.Read(frame) is not null));
-        window.Children.Add(Button("portrait", _portraits.Busy ? "Importing..." : "Choose Portrait",
-            new UiPlacement((width - 48) / 2, compact ? 22 : 36, 16, compact ? 146 : 288), _portraits.CanChoose(frame)));
+        float portraitWidth = (width - 64) / 3;
+        window.Children.Add(Button("portrait", _portraits.Busy ? "Importing..." : compact ? "Import" : "Import Portrait",
+            new UiPlacement(portraitWidth, compact ? 22 : 36, 16, compact ? 146 : 288), _portraits.CanChoose(frame)));
+        window.Children.Add(Button("photo", "Photo",
+            new UiPlacement(portraitWidth, compact ? 22 : 36, 32 + portraitWidth, compact ? 146 : 288), !_portraits.Busy && PhotoEditor.CanOpen(frame)));
         window.Children.Add(Button("portrait-reset", "Reset Portrait",
-            new UiPlacement((width - 48) / 2, compact ? 22 : 36, width / 2 + 8, compact ? 146 : 288), _portraits.CanReset(frame)));
+            new UiPlacement(portraitWidth, compact ? 22 : 36, 48 + portraitWidth * 2, compact ? 146 : 288), _portraits.CanReset(frame)));
         bool canApply = target is not null && _index >= 0 && PersonalityOptions.All[_index].Tag != target.Tag
             && PersonalityOptions.All[_index].Tag != _pending;
         float actionHeight = compact ? 24 : 32;

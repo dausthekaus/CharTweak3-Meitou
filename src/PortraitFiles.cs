@@ -29,6 +29,13 @@ internal sealed class PortraitFiles(Action<string> log)
             throw new InvalidDataException("Image exceeds 8192px / 16 megapixels.");
         var image = TextureLoader.LoadImage(bytes);
         if (image.Width != dimensions.Width || image.Height != dimensions.Height) throw new InvalidDataException("Image dimensions changed during decoding.");
+        return FromPixels(image);
+    }
+
+    internal PortraitAsset FromPixels(RgbaImage image)
+    {
+        if (image.Width <= 0 || image.Height <= 0 || (long)image.Width * image.Height > 16 * 1024 * 1024)
+            throw new InvalidDataException("Invalid photo dimensions.");
         var png = Encode(Fit(image));
         return Store(Convert.ToHexStringLower(SHA256.HashData(png)), png);
     }

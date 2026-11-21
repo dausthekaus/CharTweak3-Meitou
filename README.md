@@ -1,7 +1,9 @@
 # CharTweak 3 for MeitouClient
 
-C# code mod for the CharTweak2 feature port. **0.4.0-beta.4** adds optional uniform
-assignment to all selected squad members and selection-count notes in both profiles.
+C# code mod for the CharTweak2 feature port. **0.5.0-beta.2** adds head focus,
+vertical camera angles and panning to the Photo composer. Capture the character's
+current pose and gear over a chosen background.
+Optional uniform assignment includes all selected squad members, with selection-count notes in both profiles.
 The color window includes clear mode choices, a character profile and optional RGB controls.
 The main menu includes a selected-character profile and a hide/show shortcut for the launcher. Custom portraits support
 Linux/Windows file selection and images embedded in saves. It also includes personal clothing
@@ -97,6 +99,18 @@ the official 0.22.1 assemblies even when playing on a newer release. Later clien
 may change engine APIs; the open manifest range is not a compatibility guarantee.
 Legacy .NET 10 clients require a separate build.
 
+The **0.5.0-beta.2** DLL also passes the headless integration suite on
+**0.22.2-nightly.20261121** (commit `802c1ca3fcec7250d0a22c7be3dd647013cdab2a`),
+checked on November 21, 2026. This covers both HUD modes, the native Controls
+action, personalities, character creation/editor, colors and bulk uniforms,
+custom portrait imports/render bindings, and disk save/load. The nightly uses
+code-mod API 3 and still accepts this mod's API 2 manifest. No production code or
+save-format changes were required for nightly compatibility. Photo controls,
+composition and assignment are checked with synthetic GPU readback pixels;
+the real GPU capture remains an in-game prototype. The tests run with synthetic assets without a
+GPU; the nightly's actual in-game rendering and Windows dialog still need their
+own visual checks. Later nightlies require a new check.
+
 ## Clothing colors and uniform presets
 
 Select a living player character, open **CharTweak 3 → Clothing Colors**.
@@ -162,7 +176,7 @@ appearance isolation and the remaining in-game visual check.
 
 ## Custom portraits
 
-Select a living player character, then **CharTweak 3 → Choose Portrait**. Choose
+Select a living player character, then **CharTweak 3 → Import Portrait**. Choose
 an image in the OS file chooser; PNG, JPEG, BMP and TGA are offered. Wait for
 **Portrait applied.**, then save normally. **Reset Portrait** restores the game's
 rendered portrait for that character. Both actions keep the draggable menu open
@@ -200,6 +214,39 @@ The user has confirmed the chooser, portraits and save persistence in-game on
 Linux. The Windows dialog ABI is checked on Linux; opening the actual Windows
 dialog still needs a Windows test. The revised color layout needs an in-game visual check.
 See [portrait implementation notes](docs/custom-portraits.md).
+
+### Photo prototype
+
+1. Select a living player character in the pose and gear you want, then open
+   **CharTweak 3 → Photo**. The modal pauses gameplay and shows the current live
+   character without the surrounding world or other characters.
+2. Use **Choose background...** to pick an image in the OS file chooser, or keep
+   the plain background. Images are cropped to a centered square. Choose **Head**
+   for a close portrait or **Full body** for the wider view. **Turn left / Turn
+   right** and **Angle up / Angle down** choose the viewing angle. **Move frame**
+   shifts the framing left/right/up/down; zoom uses finer steps in Head mode.
+   **Reset view** restores the original camera and keeps the background.
+   These controls do not change the character's world position, pose or gear.
+3. Wait for the character preview, then press **Picture**. The next rendered
+   frame is read back, composited with the background, and assigned through the
+   existing portrait system. Wait for **Photo applied. Save normally to keep it.**
+   before saving. The composer stays open; **Back** returns to the main menu.
+
+This creates a **still photo**. Retake it after gear or appearance changes, or
+use **Reset Portrait** to return to the normal dynamic portrait. There is no pose
+selector: pose the character in the game before opening Photo. Photo uses the
+normal renderer's live pose, rather than the squad portrait's idle stance.
+The saved 512×512 image uses the same portable portrait data and Reset behavior
+as imported images; there is no new save format. Background/framing drafts are
+discarded when the composer closes. Changing selection before the result applies
+discards the result, preserving the previous portrait.
+
+This prototype targets Meitou's **Vulkan renderer on Linux and Windows** and
+reuses the native character-editor render target without opening the editor.
+Readback happens at the end of a frame; image composition/PNG writing runs on a
+worker. The user has confirmed the basic preview and capture in-game on Linux.
+The new head focus, angle and movement controls still need an in-game visual
+check, and Windows still needs its own GPU test.
 
 ## Build on Fedora/Linux
 

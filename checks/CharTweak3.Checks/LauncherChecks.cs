@@ -5,6 +5,7 @@ using Meitou.Game.Host;
 using Meitou.Game.Host.Input;
 using Meitou.Game.Ui;
 using Meitou.Modding;
+using Meitou.Simulation;
 
 internal static class LauncherChecks
 {
@@ -18,6 +19,7 @@ internal static class LauncherChecks
         var launcherType = host.Mods.Single().Assemblies.Single().GetType("CharTweak3.LauncherVisibility", true)!;
         var launcher = AccessTools.Field(launcherType, "s_compatibility").GetValue(null)!;
         string path = (string)AccessTools.Property(launcherType, "PreferencePath").GetValue(null)!;
+        if (launcher is null) { RunNative(host, session, player, visible, path); return; }
         UiBindings Bind() => (UiBindings)AccessTools.Method(type, "BindUi").Invoke(player, null)!;
         void Press()
         {
@@ -29,7 +31,7 @@ internal static class LauncherChecks
             foreach (var mode in new[] { UiMode.Faithful, UiMode.Meitou })
             {
                 AccessTools.Property(type, "UiMode").SetValue(player, mode);
-                var registrations = host.RegisterUi(ui.Register);
+                var registrations = host.RegisterUi(extension => ui.Register(extension));
                 IReadOnlyList<UiControl> Frame() => ui.Arrange(mode, 800, 600, Bind(), new Dictionary<string, UiRect> { [UiSlots.Overlay] = new(0, 0, 800, 600) });
                 bool Has(string name) => Frame().Any(c => c.Name == "chartweak3-meitou:" + name);
                 void Click(string name) => ui.Dispatch(Frame().Single(c => c.Name == "chartweak3-meitou:" + name));
@@ -60,6 +62,57 @@ internal static class LauncherChecks
                 Check(session.Bindings.Get(InputAction.ToggleStats).Contains(Binding.Of(Key.F11)), "F11 frame statistics binding is retained");
                 foreach (var registration in registrations) registration.Dispose();
                 Console.WriteLine($"PASS: {mode} launcher hide/show, preference persistence/recovery, key edges, no hidden hit region and binding/title guards.");
+            }
+        }
+        finally { visible.Reset(); }
+    }
+
+    // Newer clients dispatch mod key actions in GameHost, outside this headless WorldSession.
+    // Use their real bindings and press callback, with the same action edge the host dispatches.
+    private static void RunNative(ModHost host, WorldSession session, object player, ModSetting visible, string path)
+    {
+        var actions = AccessTools.Property(typeof(ModHost), "KeyActions").GetValue(host)!;
+        var action = ((System.Collections.IEnumerable)actions).Cast<object>().Single(a => (string)AccessTools.Property(a.GetType(), "Owner").GetValue(a)! == "chartweak3-meitou");
+        var number = (InputAction)AccessTools.Property(action.GetType(), "Action").GetValue(action)!;
+        AccessTools.Method(typeof(InputBindings), "UseModActions").Invoke(session.Bindings, [actions, null]);
+        Check(session.Bindings.Get(number).Contains(Binding.Of(Key.Backslash)), "native Controls action defaults to backslash");
+        var press = AccessTools.Method(action.GetType(), "Press");
+        var type = player.GetType();
+        var ui = (UiHost)AccessTools.Field(type, "_uiHost").GetValue(player)!;
+        UiBindings Bind() => (UiBindings)AccessTools.Method(type, "BindUi").Invoke(player, null)!;
+        void Tick()
+        {
+            var state = session.Tick();
+            if (!state.Pressed(number)) return;
+            var context = Activator.CreateInstance(press.GetParameters()[0].ParameterType, session.CurrentSnapshot,
+                session.World.Player.Selection.ToArray(), session.World.Tick, (Action<SimCommand>)session.World.Commands.Enqueue);
+            press.Invoke(action, [context]);
+        }
+        try
+        {
+            foreach (var mode in new[] { UiMode.Faithful, UiMode.Meitou })
+            {
+                AccessTools.Property(type, "UiMode").SetValue(player, mode);
+                var registrations = host.RegisterUi(extension => ui.Register(extension));
+                IReadOnlyList<UiControl> Frame() => ui.Arrange(mode, 800, 600, Bind(), new Dictionary<string, UiRect> { [UiSlots.Overlay] = new(0, 0, 800, 600) });
+                bool Has(string name) => Frame().Any(c => c.Name == "chartweak3-meitou:" + name);
+                void Click(string name) => ui.Dispatch(Frame().Single(c => c.Name == "chartweak3-meitou:" + name));
+                visible.Reset(); Click("open"); Click("launcher");
+                Check(!Has("open") && Has("window"), "native-action client can hide launcher while retaining main menu");
+                using (var saved = JsonDocument.Parse(File.ReadAllText(path)))
+                    Check(!saved.RootElement.GetProperty("ShowLauncher").GetBoolean(), "native-action client persists launcher visibility");
+                long tick = session.World.Tick;
+                session.Input.SetKey(Key.Backslash, true); Tick();
+                Check(Has("open") && Has("window") && session.World.Tick == tick, "native backslash action restores launcher while paused");
+                Tick(); Check(Has("open"), "native held key does not toggle twice");
+                session.Input.SetKey(Key.Backslash, false); Tick();
+                Click("close"); Click("open"); Click("launcher"); Click("close");
+                session.Input.SetKey(Key.Backslash, true); Tick();
+                Check(Has("open") && !Has("window"), "native Controls action recovers hidden launcher with menu closed");
+                session.Input.SetKey(Key.Backslash, false); Tick();
+                Check(session.Bindings.Get(InputAction.ToggleStats).Contains(Binding.Of(Key.F11)), "native action retains F11 frame statistics");
+                foreach (var registration in registrations) registration.Dispose();
+                Console.WriteLine($"PASS: {mode} native Controls registration, real binding/press callback, held edges, visibility persistence and closed-menu recovery.");
             }
         }
         finally { visible.Reset(); }

@@ -5,7 +5,7 @@
     <OutputType>Library</OutputType>
     <AssemblyName>CharTweak3-Meitou</AssemblyName>
     <RootNamespace>CharTweak3</RootNamespace>
-    <Version>0.4.0-beta.4</Version>
+    <Version>0.5.0-beta.2</Version>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>

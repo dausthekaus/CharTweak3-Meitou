@@ -114,7 +114,7 @@ internal static class PortraitChecks
             foreach (var mode in new[] { UiMode.Faithful, UiMode.Meitou })
             {
                 AccessTools.Property(uiType, "UiMode").SetValue(playerUi, mode);
-                var registrations = host.RegisterUi(ui.Register);
+                var registrations = host.RegisterUi(extension => ui.Register(extension));
                 IReadOnlyList<UiControl> Menu() => ui.Arrange(mode, 1280, 900, Bind(), new Dictionary<string, UiRect> { [UiSlots.Overlay] = new(0, 0, 1280, 900) });
                 UiControl Control(string name) => Menu().Single(c => c.Name == "chartweak3-meitou:" + name);
                 void Click(string name) => ui.Dispatch(Control(name));
@@ -176,6 +176,7 @@ internal static class PortraitChecks
                 Console.WriteLine($"PASS: {mode} async portrait chooser, paused apply/reset, cancellation, selection change and character isolation.");
             }
 
+            PhotoChecks.Run(host, session, playerUi, first, second, npc, source, invalid, files);
             world.Commands.Enqueue(Command(first, asset)); world.Commands.Enqueue(Command(second, asset));
             world.ApplyPausedInterfaceCommands();
             Check(View(system).Count == 2, "portrait publication covers unselected squad members");

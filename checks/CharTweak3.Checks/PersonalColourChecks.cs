@@ -135,7 +135,7 @@ internal static class PersonalColourChecks
             AccessTools.Property(uiType, "UiMode").SetValue(player, uiMode);
             var ui = (UiHost)AccessTools.Field(uiType, "_uiHost").GetValue(player)!;
             var diagnostics = new List<UiDiagnostic>(); ui.Diagnostic += diagnostics.Add;
-            var registrations = host.RegisterUi(ui.Register);
+            var registrations = host.RegisterUi(extension => ui.Register(extension));
             IReadOnlyList<UiControl> Menu()
             {
                 object?[] frame = [player, ui.Arrange(uiMode, 1280, 900, BindHud(), new Dictionary<string, UiRect> { [UiSlots.Overlay] = new(0, 0, 1280, 900) })];

@@ -29,7 +29,10 @@ var data = PopulationData.Create(db, []);
 World? current = null;
 var manifest = CodeModManifest.Read(Path.Combine(folder, "meitou.json"));
 var info = new ModInfo("CharTweak3-Meitou", Path.Combine(folder, "CharTweak3-Meitou.mod"), ModSource.Local);
-var host = ModHost.Load(new ModHostOptions([info], db, data, () => current, GameVersion: new CodeModVersion(0,22,1)));
+var runtimeVersion = typeof(IMod).Assembly.GetName().Version!;
+Console.WriteLine($"Meitou runtime: {typeof(IMod).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? runtimeVersion.ToString()}");
+var host = ModHost.Load(new ModHostOptions([info], db, data, () => current,
+    GameVersion: new CodeModVersion(runtimeVersion.Major, runtimeVersion.Minor, runtimeVersion.Build)));
 Assert(host.Mods.Count == 1 && host.Notices.Count == 0, "real ModHost loads beta and installs patches");
 var mod = host.Mods[0].Assemblies.Single();
 Assert(mod.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion.Split('+')[0] == manifest.Version!.ToString(), "project/manifest beta versions match");
@@ -66,7 +69,7 @@ foreach (var mode in new[] { UiMode.Faithful, UiMode.Meitou })
     var ui = new UiHost();
     var diagnostics = new List<UiDiagnostic>();
     ui.Diagnostic += diagnostics.Add;
-    var registrations = host.RegisterUi(ui.Register);
+    var registrations = host.RegisterUi(extension => ui.Register(extension));
     IReadOnlyList<UiControl> Frame(int width = 800, int height = 600) => ui.Arrange(mode, width, height, Bind(),
         new Dictionary<string, UiRect> { [UiSlots.Overlay] = new(0,0,width,height) });
     UiControl Control(string name) => Frame().Single(c => c.Name == "chartweak3-meitou:" + name);

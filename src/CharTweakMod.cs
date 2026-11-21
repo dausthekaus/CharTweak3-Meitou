@@ -23,6 +23,8 @@ public sealed class CharTweakMod : IMod
         var portraits = new PortraitFiles(context.LogError);
         PortraitSave.Install(context.Harmony);
         PortraitRendering.Install(context.Harmony);
+        PhotoRendering.Install(context);
+        PhotoEditor.Install(context, portraits);
         MainPanelDrag.Initialize(context.Harmony);
         ColourEditor.Install(context);
         ColourPausedUpdates.Install(context.Harmony);
@@ -31,6 +33,6 @@ public sealed class CharTweakMod : IMod
         context.AddSystem("portraits", _ => new PortraitSystem(portraits), SystemAnchor.End);
         var launcher = new LauncherVisibility(context);
         context.AddUi(new CharTweakUi(context, portraits, launcher));
-        context.Log($"CharTweak 3 {context.Manifest.Version}: personalities, character editor, colors, uniforms and custom portraits registered.");
+        context.Log($"CharTweak 3 {context.Manifest.Version}: personalities, character editor, colors, uniforms, portraits and Photo prototype registered.");
     }
 }

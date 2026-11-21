@@ -120,3 +120,105 @@ the squad bar, switch squads, open the squads screen and a conversation, save
 and reload, and reset. Check transparency and wide/tall pictures at the current
 UI scale. Linux headless checks cannot validate GPU presentation or opening a
 Windows shell dialog; the Windows STA/PInvoke path needs that native runtime test.
+
+## Native rendered portrait customization: feasibility
+
+Reviewed against [0.22.2-nightly.20261121](https://github.com/VlcekM/MeitouClient/releases/tag/v0.22.2-nightly.20261121),
+commit `802c1ca3fcec7250d0a22c7be3dd647013cdab2a`, on November 21, 2026.
+The broader dynamic styling below remains a proposed extension. The basic still
+Photo prototype in 0.5.0-beta.1 is described after these findings.
+
+- **Backgrounds:** feasible through UI composition. The native portrait atlas is
+  transparent around the character. `PortraitBar` draws a background, back
+  overlay, character image, front overlay, name and frame as separate controls.
+  A per-character background can sit behind the native image while keeping
+  combat/hunger/hurt indicators and selection behavior. Profile and conversation
+  portraits need their own corresponding background controls.
+- **Automatic gear updates:** retain the native renderer and its appearance
+  asset. Its portrait cache redraws when the character, appearance asset,
+  camera serial or radius changes, and when better textures arrive. A custom
+  background does not require replacing the character with an imported bitmap.
+  Style changes would also need explicit cache invalidation.
+- **Camera/framing:** achievable in principle with portrait-only rendering
+  hooks. The native camera uses race offsets/distance and a character-specific
+  serial for yaw/pitch; these are distinct from a skeletal pose. Per-character
+  controls should not modify shared race records.
+- **Body poses:** need a rendering prototype. `PosePortrait` currently evaluates
+  the idle animation at time zero plus fixed posture layers. `BeginPortraitPose`
+  allocates portrait bone/attachment data, and `EndPortraitPose` restores the
+  live state. A selectable frozen animation pose must stay inside that scope,
+  restore state on every exit, retain the current gear and work with different
+  rigs. The public `PortraitRequest` carries only key/cell/serial, and API 3
+  exposes no dedicated per-character portrait pose callback. `LookExtras` pose
+  weights are shape keys, not a replacement for this skeletal animation work.
+
+A small first implementation could offer native-rendered backgrounds and
+camera presets alongside imported images, followed by frozen animation poses
+once a GPU prototype confirms the isolation and cache behavior. Use Meitou's
+managed UI/rendering path for Linux and Windows, with visual tests on both.
+
+Source: [native portrait rendering](https://github.com/VlcekM/MeitouClient/blob/802c1ca3fcec7250d0a22c7be3dd647013cdab2a/src/Meitou.Game/Rendering/Characters/CharacterRenderer.Portraits.cs),
+[portrait UI layers](https://github.com/VlcekM/MeitouClient/blob/802c1ca3fcec7250d0a22c7be3dd647013cdab2a/src/Meitou.Game/Ui/PortraitBar.cs)
+and [modding API](https://github.com/VlcekM/MeitouClient/blob/802c1ca3fcec7250d0a22c7be3dd647013cdab2a/docs/modding.md).
+
+## Still Photo prototype (0.5.0-beta.1)
+
+The user chose a still image of the current pose/gear with an optional background.
+`PhotoEditor` supplies a draggable native modal, an OS background chooser, turn
+and zoom controls, and Picture/Back/Close. It pauses through the existing native
+menu-pause mechanism and uses the same target/world revalidation as the editors.
+
+`PhotoRendering` validates and patches the internal entry points: GameHost's
+FillDrawList prepares an EditorStageRequest, GatherPortraitKeys keeps that
+character posed at any distance, CharacterRenderer.DrawPortraits draws the stage
+after the native portraits, and GameLoop.DrawFrame reads it after rendering has
+finished. This uses the world's current bones and gear; it does not replace the
+live bone palette with the portrait's idle pose. The plain studio background
+is temporarily made transparent and restored in a finally block. Other native
+stage owners are respected. An unavailable contract disables only Photo.
+
+The stage is 512×512 RGBA. A Picture request is fulfilled on the render thread
+with FramebufferCapture.Read on the Vulkan backend. PhotoImage flips the rows
+once, rejects an empty capture, and composites the character over a centered
+square crop of the chosen background (or neutral gray). PNG creation/storage is
+off-thread through PortraitFiles.FromPixels, sharing the existing encoder,
+content hashes and limits. A completed result is revalidated before SetPortrait
+is queued. The existing system handles paused application, character saves and
+the embedded portable image bundle, with no serialization changes.
+
+Closing cancels pending readback and detaches the native stage request. A late
+background import/composition cannot assign a portrait after closing. Selection
+or world changes reject the result. No live pose, camera, race or equipment
+records are modified. Static image import/reset remain available alongside Photo.
+
+PhotoChecks covers the actual hooks' installation, both HUD modes, native modal
+dragging/pause, viewport fitting, OS background loading and invalid-image
+retention, preview-only framing, compositing/alpha/crop/orientation, existing PNG
+storage, synthetic readback completion, stale-selection rejection and pending
+capture cancellation. These do not exercise a real GPU. In-game follow-up: test
+standing/sitting/action poses, light/dark backgrounds and hair edges, turn/zoom,
+Picture, save/reload and Reset on Linux and Windows, on both tested clients.
+
+### Camera controls (0.5.0-beta.2)
+
+The user confirmed the initial photo preview/capture in-game on Linux. Camera
+controls now include Head/Full body presets, vertical orbit (bounded to ±1.3
+radians), four-way screen-relative panning, fine head zoom and Reset view. Head
+starts at distance 9, with 0.5-unit zoom steps down to 2; the full-body preset
+keeps the previous distance 42 and 4-unit steps. Switching focus recenters and
+retains the chosen yaw. Reset restores all camera defaults without changing
+the background. All camera values are temporary UI state.
+
+A scoped postfix on CharacterRenderer.StageCamera handles only this Photo
+request. In Head mode it targets BonePosition(key, "Bip01 Head") from the last
+live rendered pose, retaining the native head-camera fallback when unavailable.
+Eye and pivot receive the same translation, preserving the native yaw/elevation
+and distance. Panning follows the camera's right/up axes. Native head mode may
+calculate its fallback point from a scratch idle pose, but the renderer still
+draws the current live bone palette. Other stage requests are left untouched.
+
+Checks cover head/body presets, propagation to EditorStageRequest, tilt/zoom
+limits, screen-relative pan math, live-head centering, native fallback, unrelated
+stage isolation, Reset retaining the background, unchanged character state, and
+both HUD modes fitting the existing window. New framing still needs a GPU visual
+check on Linux and Windows.

@@ -46,6 +46,7 @@ internal sealed class CharTweakUi(ModContext context, PortraitFiles portraits, L
         registration.RegisterAction("colours", panel.OpenColours);
         registration.RegisterAction("portrait", panel.ChoosePortrait);
         registration.RegisterAction("portrait-reset", panel.ResetPortrait);
+        registration.RegisterAction("photo", panel.OpenPhoto);
         registration.RegisterAction("launcher", _ => launcher.Toggle());
         registration.Contribute(UiSlots.Overlay, panel.Build);
     }

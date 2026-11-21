@@ -11,7 +11,9 @@ internal static class PortraitPicker
     private static int s_open;
     internal static bool IsOpen => Volatile.Read(ref s_open) != 0;
 
-    internal static Task<string?> Choose()
+    internal static Task<string?> Choose() => Start("CharTweak 3 — Choose portrait");
+    internal static Task<string?> ChooseBackground() => Start("CharTweak 3 — Choose photo background");
+    private static Task<string?> Start(string title)
     {
         if (Interlocked.CompareExchange(ref s_open, 1, 0) != 0)
             return Task.FromException<string?>(new InvalidOperationException("A portrait file chooser is already open."));
@@ -22,8 +24,8 @@ internal static class PortraitPicker
             Exception? failure = null;
             try
             {
-                result = OperatingSystem.IsWindows() ? WindowsChoose()
-                    : OperatingSystem.IsLinux() ? LinuxChoose() : throw new PlatformNotSupportedException("Portrait selection supports Linux and Windows.");
+                result = OperatingSystem.IsWindows() ? WindowsChoose(title)
+                    : OperatingSystem.IsLinux() ? LinuxChoose(title) : throw new PlatformNotSupportedException("Portrait selection supports Linux and Windows.");
             }
             catch (Exception e) { failure = e; }
             finally { Volatile.Write(ref s_open, 0); }
@@ -35,15 +37,15 @@ internal static class PortraitPicker
         return completion.Task;
     }
 
-    private static string? LinuxChoose()
+    private static string? LinuxChoose(string title)
     {
         bool kde = Environment.GetEnvironmentVariable("XDG_CURRENT_DESKTOP")?.Contains("KDE", StringComparison.OrdinalIgnoreCase) == true;
         foreach (string tool in kde ? new[] { "kdialog", "zenity" } : new[] { "zenity", "kdialog" })
         {
             var start = new ProcessStartInfo(tool) { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
             string[] arguments = tool == "zenity"
-                ? ["--file-selection", "--title=CharTweak 3 — Choose portrait", "--file-filter=Images | *.png *.jpg *.jpeg *.bmp *.tga *.PNG *.JPG *.JPEG *.BMP *.TGA", "--file-filter=All files | *"]
-                : ["--title", "CharTweak 3 — Choose portrait", "--getopenfilename", Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "*.png *.jpg *.jpeg *.bmp *.tga *.PNG *.JPG *.JPEG *.BMP *.TGA|Images"];
+                ? ["--file-selection", "--title=" + title, "--file-filter=Images | *.png *.jpg *.jpeg *.bmp *.tga *.PNG *.JPG *.JPEG *.BMP *.TGA", "--file-filter=All files | *"]
+                : ["--title", title, "--getopenfilename", Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "*.png *.jpg *.jpeg *.bmp *.tga *.PNG *.JPG *.JPEG *.BMP *.TGA|Images"];
             foreach (string argument in arguments) start.ArgumentList.Add(argument);
             try
             {
@@ -83,7 +85,7 @@ internal static class PortraitPicker
     }
 
     [SupportedOSPlatform("windows")]
-    private static string? WindowsChoose()
+    private static string? WindowsChoose(string title)
     {
         nint buffer = Marshal.AllocHGlobal(32768 * sizeof(char));
         try
@@ -96,7 +98,7 @@ internal static class PortraitPicker
                 Filter = "Images (*.png;*.jpg;*.jpeg;*.bmp;*.tga)\0*.png;*.jpg;*.jpeg;*.bmp;*.tga\0All files (*.*)\0*.*\0\0",
                 FilterIndex = 1, File = buffer, MaximumFile = 32768,
                 InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
-                Title = "CharTweak 3 — Choose portrait",
+                Title = title,
                 Flags = 0x00080000 | 0x00001000 | 0x00000800 | 0x00000008, // Explorer, file/path must exist, no working-directory change.
             };
             if (GetOpenFileNameW(ref picker)) return Marshal.PtrToStringUni(buffer);

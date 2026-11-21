@@ -59,7 +59,7 @@ internal static class EditorChecks
             var ui = new UiHost();
             var diagnostics = new List<UiDiagnostic>();
             ui.Diagnostic += diagnostics.Add;
-            var registrations = host.RegisterUi(ui.Register);
+            var registrations = host.RegisterUi(extension => ui.Register(extension));
             IReadOnlyList<UiControl> Frame() => ui.Arrange(mode, 800, 600, Bind(),
                 new Dictionary<string, UiRect> { [UiSlots.Overlay] = new(0, 0, 800, 600) });
             UiControl Control(string name) => Frame().Single(c => c.Name == "chartweak3-meitou:" + name);
